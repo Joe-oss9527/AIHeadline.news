@@ -1,0 +1,31 @@
+{{- $date := .Date -}}
+{{- $formatted := "" -}}
+{{- if $date -}}
+  {{- $formatted = $date.Format "2006 年 01 月 02 日" -}}
+{{- end -}}
+{{- $sourceCount := 0 -}}
+{{- if .Params.sources -}}
+  {{- $sourceCount = len .Params.sources -}}
+{{- end -}}
+<div class="daily-header hx-mb-10 hx-rounded-xl hx-border hx-border-slate-200 hx-bg-slate-50 hx-p-6 dark:hx-border-slate-800 dark:hx-bg-slate-900/40">
+  <div class="hx-flex hx-flex-col md:hx-flex-row md:hx-items-center md:hx-justify-between hx-gap-4">
+    <div>
+      <h1 class="hx-text-2xl hx-font-semibold hx-text-slate-900 dark:hx-text-slate-100">AI 每日简报 · {{ if $formatted }}{{ $formatted }}{{ else }}{{ .Title }}{{ end }}</h1>
+      <p class="hx-mt-2 hx-text-sm hx-text-slate-600 dark:hx-text-slate-300">
+        由 AI Briefing 自动生成，涵盖 {{ if gt $sourceCount 0 }}{{ $sourceCount }} 个信息源{{ else }}最新要闻{{ end }}，总结全球人工智能趋势与动态。
+      </p>
+    </div>
+    <div class="hx-flex hx-flex-wrap hx-gap-2">
+      {{- if .Params.sources -}}
+        {{- range .Params.sources -}}
+          <span class="hx-inline-flex hx-items-center hx-rounded-full hx-bg-indigo-100 hx-px-3 hx-py-1 hx-text-sm hx-font-medium hx-text-indigo-800 dark:hx-bg-indigo-500/20 dark:hx-text-indigo-200">{{ . }}</span>
+        {{- end -}}
+      {{- else -}}
+        <span class="hx-inline-flex hx-items-center hx-rounded-full hx-bg-indigo-100 hx-px-3 hx-py-1 hx-text-sm hx-font-medium hx-text-indigo-800 dark:hx-bg-indigo-500/20 dark:hx-text-indigo-200">AI 简报</span>
+      {{- end -}}
+    </div>
+  </div>
+  <div class="hx-mt-4 hx-text-xs hx-text-slate-500 dark:hx-text-slate-400">
+    数据来源：<a class="hx-text-indigo-600 hover:hx-underline dark:hx-text-indigo-300" href="https://github.com/Joe-oss9527/ai-briefing-archive" target="_blank" rel="noopener">ai-briefing-archive</a>
+  </div>
+</div>

@@ -1,0 +1,3 @@
+[submodule "source-news"]
+	path = source-news
+	url = https://github.com/Joe-oss9527/ai-briefing-archive.git

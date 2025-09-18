@@ -16,7 +16,7 @@ All content files are in `.gitignore` and must NOT be committed.
 
 ```bash
 # Local development setup
-bash .github/scripts/test-sync.sh  # Sync content from ai-news-vault for testing
+bash .github/scripts/test-sync.sh  # Sync content from ai-briefing-archive for testing
 hugo server                        # Start dev server (http://localhost:1313)
 hugo --gc --minify                # Build for production
 
@@ -26,7 +26,7 @@ npm run dev                       # Test Worker locally
 ```
 
 ### Local Development Notes
-- Use `.github/scripts/test-sync.sh` to pull latest content from ai-news-vault repository
+- Use `.github/scripts/test-sync.sh` to pull latest content from ai-briefing-archive repository
 - This script is required for local testing but should NOT be run in production
 - The script will clone/update the source repository and regenerate all content
 
@@ -42,7 +42,7 @@ npm run dev                       # Test Worker locally
 ## Project Overview
 
 **AI News Hugo Site** - Automated daily AI news aggregation site
-- **Content Source**: Private `YYvanYang/ai-news-vault` repository
+- **Content Source**: `Joe-oss9527/ai-briefing-archive` repository
 - **Sync Schedule**: Daily at UTC 0:00 via GitHub Actions
 - **Deployment**: Cloudflare Workers (生产) + GitHub Pages (备份)
 - **RSS Feed**: Available at `/index.xml` with full content
@@ -130,7 +130,7 @@ npm run dev                       # Test Worker locally
 
 ### Common Issues & Solutions
 - **Missing sidebar navigation**: The sidebar only shows on screens ≥768px due to custom CSS
-- **Content not updating**: Run `.github/scripts/test-sync.sh` to pull latest from ai-news-vault
+- **Content not updating**: Run `.github/scripts/test-sync.sh` to pull latest from ai-briefing-archive
 - **Hugo module errors**: Ensure Go is in PATH: `export PATH="$HOME/go/bin:$PATH"`
 - **CSS styles not applying**: 
   - CSS files must be in `assets/css/` directory, NOT `static/css/`

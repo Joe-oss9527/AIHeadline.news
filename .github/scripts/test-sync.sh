@@ -3,13 +3,13 @@
 
 echo "=== AI News Hugo 本地测试脚本 ==="
 
-# 检查是否已经克隆了源仓库
-if [ ! -d "source-news" ]; then
-    echo "克隆 ai-news-vault 仓库..."
-    git clone https://github.com/YYvanYang/ai-news-vault.git source-news
+# 初始化或更新子模块
+if [ ! -d "source-news" ] || [ ! -f "source-news/.git" ]; then
+    echo "初始化 ai-briefing-archive 子模块..."
+    git submodule update --init --depth 1 source-news
 else
-    echo "更新 ai-news-vault 仓库..."
-    cd source-news && git pull && cd ..
+    echo "更新 ai-briefing-archive 子模块..."
+    git -C source-news pull --ff-only
 fi
 
 # 清理旧的测试内容

@@ -12,7 +12,7 @@ set -euo pipefail
 # =============================================================================
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-readonly SOURCE_DIR="${PROJECT_ROOT}/source-news/summaries"
+readonly SOURCE_DIR="${PROJECT_ROOT}/source-news"
 readonly CONTENT_DIR="${PROJECT_ROOT}/content"
 readonly TEMPLATE_DIR="${PROJECT_ROOT}/.github/templates"
 
@@ -87,12 +87,60 @@ calculate_weight() {
     echo $((100000 - (year_num - 2000) * 1000 - month_num * 10 - day_num))
 }
 
+# 将 pipeline 标识转换成可读名称
+pipeline_display_name() {
+    local slug="$1"
+    case "$slug" in
+        ai-briefing-twitter-list)
+            echo "AI 快讯 · Twitter"
+            ;;
+        ai-briefing-hackernews)
+            echo "Hacker News 热点"
+            ;;
+        ai-briefing-reddit)
+            echo "Reddit 精选"
+            ;;
+        ai-briefing-hn)
+            echo "Hacker News 日报"
+            ;;
+        ai-briefing-all)
+            echo "AI 简报"
+            ;;
+        *)
+            # 默认将 slug 转换为可读形式
+            echo "${slug//-/ }" | sed 's/\b./\u&/g'
+            ;;
+    esac
+}
+
+# 将 Markdown 标题级别整体下调一级，避免页面出现多个 H1
+render_markdown_body() {
+    local file="$1"
+    python3 - "$file" <<'PY'
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+text = path.read_text(encoding='utf-8')
+lines = text.splitlines()
+output = []
+start_index = 0
+if lines and lines[0].startswith('# '):
+    start_index = 1
+for line in lines[start_index:]:
+    if line.startswith('# '):
+        output.append('## ' + line[2:].lstrip())
+    else:
+        output.append(line)
+sys.stdout.write('\n'.join(output))
+PY
+}
+
 # 收集月份的所有日期
 collect_month_dates() {
     local month_dir="$1"
     
-    find "$month_dir" -name '*summary_*.md' -type f 2>/dev/null | \
-        grep -oE '[0-9]{8}' | \
+    find "$month_dir" -mindepth 2 -maxdepth 2 -type f -name 'briefing_*.md' 2>/dev/null | \
+        sed -n 's/.*briefing_\([0-9]\{8\}\)T[0-9]\{6\}Z\.md$/\1/p' | \
         sort -u | \
         while IFS= read -r date_str; do
             if validate_date "$date_str"; then
@@ -103,68 +151,132 @@ collect_month_dates() {
         done
 }
 
-# 生成日报页面 - 优化版本，避免标题重复
+# 生成日报页面
 generate_daily_page() {
     local month_dir="$1"
     local dest_dir="$2"
     local date_str="$3"
-    
+
     eval "$(parse_date "$date_str")"
     local day_weight
     day_weight=$(calculate_weight "$year" "$month" "$day")
-    
-    local merged_file="${dest_dir}/${year}-${month}-${day}.md"
-    
-    # 生成前置数据 - 添加自定义字段
-    cat > "$merged_file" << FILE_EOF
----
-title: "${month}-${day}-简报"
-weight: $day_weight
-date: ${year}-${month}-${day}
-description: "AI每日简报 - ${year}年${month}月${day}日行业动态"
-toc: true
----
 
-FILE_EOF
-    
-    # 查找该日期的所有文件
-    local files=()
+    local pipelines_list
+    local files_list
+    local times_list
+    pipelines_list=()
+    files_list=()
+    times_list=()
+
     while IFS= read -r -d '' file; do
-        files+=("$file")
-    done < <(find "$month_dir" -name "*summary_${date_str}_*.md" -type f -print0 2>/dev/null)
-    
-    if [[ ${#files[@]} -eq 0 ]]; then
-        log "WARN: No files found for date $date_str"
-        return 1
-    elif [[ ${#files[@]} -eq 1 ]]; then
-        # 单个文件，直接追加
-        cat "${files[0]}" >> "$merged_file"
-    else
-        # 多个文件，按时间戳合并
-        for file in "${files[@]}"; do
-            local filename
-            filename="$(basename "$file")"
-            
-            # 提取时间戳 (HHMMSS)
-            if [[ "$filename" =~ summary_[0-9]{8}_([0-9]{6})\.md$ ]]; then
-                local timestamp="${BASH_REMATCH[1]}"
-                local hour="${timestamp:0:2}"
-                local minute="${timestamp:2:2}"
-                
-                {
-                    echo "### ${hour}:${minute} 更新"
-                    echo ""
-                    cat "$file"
-                    echo ""
-                } >> "$merged_file"
-            else
-                # 没有时间戳的文件
-                cat "$file" >> "$merged_file"
-                echo "" >> "$merged_file"
+        local rel="${file#${month_dir}/}"
+        local pipeline="${rel%%/*}"
+        local filename="${file##*/}"
+
+        if [[ "$filename" =~ ^briefing_([0-9]{8})T([0-9]{6})Z\.md$ ]]; then
+            local file_date="${BASH_REMATCH[1]}"
+            local time_part="${BASH_REMATCH[2]}"
+
+            [[ "$file_date" == "$date_str" ]] || continue
+
+            local iso_stamp="${file_date}T${time_part}Z"
+            local idx=-1
+            local i=0
+            if [[ ${#pipelines_list[@]} -gt 0 ]]; then
+                for existing in "${pipelines_list[@]}"; do
+                    if [[ "$existing" == "$pipeline" ]]; then
+                        idx=$i
+                        break
+                    fi
+                    i=$((i + 1))
+                done
             fi
-        done
+
+            if [[ $idx -eq -1 ]]; then
+                pipelines_list+=("$pipeline")
+                files_list+=("$file")
+                times_list+=("$iso_stamp")
+            else
+                if [[ "$iso_stamp" > "${times_list[$idx]}" ]]; then
+                    files_list[$idx]="$file"
+                    times_list[$idx]="$iso_stamp"
+                fi
+            fi
+        else
+            log "WARN: Unrecognized filename format: $filename"
+        fi
+    done < <(find "$month_dir" -mindepth 2 -maxdepth 2 -type f -name "briefing_${date_str}T*.md" -print0 2>/dev/null)
+
+    if [[ ${#pipelines_list[@]} -eq 0 ]]; then
+        log "WARN: No briefing files found for date $date_str"
+        return 1
     fi
-    
+
+    local merged_file="${dest_dir}/${year}-${month}-${day}.md"
+    : > "$merged_file"
+
+    echo "---" >> "$merged_file"
+    echo "title: "${year}年${month}月${day}日 AI 简报"" >> "$merged_file"
+    echo "weight: $day_weight" >> "$merged_file"
+    echo "date: ${year}-${month}-${day}" >> "$merged_file"
+    echo "description: "AI每日简报 - ${year}年${month}月${day}日最新动态"" >> "$merged_file"
+
+    local order=()
+    local idx=0
+    for pipeline in "${pipelines_list[@]}"; do
+        order+=("${pipeline}:::${idx}")
+        idx=$((idx + 1))
+    done
+    IFS=$'
+' order=($(printf '%s
+' "${order[@]}" | sort))
+
+    if [[ ${#order[@]} -gt 0 ]]; then
+        echo "sources:" >> "$merged_file"
+        for entry in "${order[@]}"; do
+            local pipeline="${entry%%:::*}"
+            echo "  - $(pipeline_display_name "$pipeline")" >> "$merged_file"
+        done
+
+        echo "source_slugs:" >> "$merged_file"
+        for entry in "${order[@]}"; do
+            local pipeline="${entry%%:::*}"
+            echo "  - $pipeline" >> "$merged_file"
+        done
+    else
+        echo "sources: []" >> "$merged_file"
+        echo "source_slugs: []" >> "$merged_file"
+    fi
+
+    echo "toc: true" >> "$merged_file"
+    echo "---" >> "$merged_file"
+
+    for entry in "${order[@]}"; do
+        local pipeline="${entry%%:::*}"
+        local idx="${entry##*:::}"
+        local file="${files_list[$idx]}"
+        local stamp="${times_list[$idx]}"
+        local friendly
+        friendly="$(pipeline_display_name "$pipeline")"
+
+        local time_display=""
+        if [[ "$stamp" =~ T([0-9]{2})([0-9]{2}) ]]; then
+            time_display="${BASH_REMATCH[1]}:${BASH_REMATCH[2]}"
+        fi
+
+        {
+            echo ""
+            if [[ -n "$time_display" ]]; then
+                echo "## ${friendly} — ${time_display} 更新"
+            else
+                echo "## ${friendly}"
+            fi
+            echo ""
+            render_markdown_body "$file"
+            echo ""
+        } >> "$merged_file"
+    done
+
     log "Generated: $merged_file"
 }
 

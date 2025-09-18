@@ -12,7 +12,7 @@
 
 | 类别 | 描述 |
 |------|------|
-| **内容自动化** | 每日同步私有仓库 `ai-news-vault`，智能分类、按月归档 |
+| **内容自动化** | 每日同步仓库 [`ai-briefing-archive`](https://github.com/Joe-oss9527/ai-briefing-archive)，智能分类、按月归档 |
 | **Hextra 主题** | 暗色/浅色、FlexSearch、站内链接卡片、RSS、PWA |
 | **双环境发布** | Cloudflare Worker (Assets) 生产 • GitHub Pages 备份 |
 | **实时统计** | GA4 Data API (JWT 自签名) 缓存到边缘：累计访问量 + 在线人数 |
@@ -47,6 +47,7 @@ Worker 本地开发需要配置 GA4 服务账号密钥：
 
 ```bash
 # 同步最新内容
+git submodule update --init --depth 1 source-news
 bash .github/scripts/test-sync.sh
 
 # 启动 Hugo 预览
@@ -65,7 +66,7 @@ npm run dev
 
 需要配置的核心 Secrets：
 - `CF_API_TOKEN` & `CF_ACCOUNT_ID` - Cloudflare 部署
-- `PERSONAL_ACCESS_TOKEN` - 访问私有内容仓库
+- `PERSONAL_ACCESS_TOKEN` - 访问 `ai-briefing-archive`（如需权限控制）
 - `GA4_SERVICE_KEY` - Google Analytics 统计（Worker 环境变量）
 
 📖 详细配置步骤、技术文档和故障排查请参考 [**部署指南**](docs/deployment-guide.md)

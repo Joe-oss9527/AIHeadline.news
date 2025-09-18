@@ -21,7 +21,7 @@
 ```mermaid
 graph TB
   A[触发器: git push / cron / manual] --> B[Job 1: build]
-  B --> B1[同步内容<br>ai-news-vault → content/]
+    B --> B1[同步内容<br>ai-briefing-archive → content/]
   B1 --> B2[Hugo 构建<br>content/ → public/]
   B2 --> B3[上传 Pages Artifact<br>public/ → GitHub]
   
@@ -497,7 +497,7 @@ wrangler secret put GA4_SERVICE_KEY
 ### 内容未更新
 
 1. **验证源数据**：
-   - 确认 ai-news-vault 仓库有新的 `.md` 文件（不处理 HTML/PDF）
+   - 确认 ai-briefing-archive 仓库有新的 `.md` 文件（不处理 JSON/PDF）
    - 检查文件命名格式是否符合年月目录结构
    - 确认文件在正确的年月目录下且包含有效的 frontmatter
 
