@@ -3,7 +3,7 @@
 # 
 # 功能：从ai-news-vault仓库同步markdown文件并生成Hugo站点内容
 # 作者：AI每日简报团队
-# 版本：2.3 - 优化标题生成，避免重复
+# 版本：2.4 - 简化生成逻辑，仅保留当天最新一次日报；显示原始标题（不追加更新时间）
 
 set -euo pipefail
 
@@ -161,12 +161,10 @@ generate_daily_page() {
     local day_weight
     day_weight=$(calculate_weight "$year" "$month" "$day")
 
-    local pipelines_list
-    local files_list
-    local times_list
-    pipelines_list=()
-    files_list=()
-    times_list=()
+    # 选择当天最新的一份（跨管道取最大时间戳）
+    local selected_file=""
+    local selected_pipeline=""
+    local best_stamp=""
 
     while IFS= read -r -d '' file; do
         local rel="${file#${month_dir}/}"
@@ -179,105 +177,53 @@ generate_daily_page() {
 
             [[ "$file_date" == "$date_str" ]] || continue
 
-            local iso_stamp="${file_date}T${time_part}Z"
-            local idx=-1
-            local i=0
-            if [[ ${#pipelines_list[@]} -gt 0 ]]; then
-                for existing in "${pipelines_list[@]}"; do
-                    if [[ "$existing" == "$pipeline" ]]; then
-                        idx=$i
-                        break
-                    fi
-                    i=$((i + 1))
-                done
-            fi
-
-            if [[ $idx -eq -1 ]]; then
-                pipelines_list+=("$pipeline")
-                files_list+=("$file")
-                times_list+=("$iso_stamp")
-            else
-                if [[ "$iso_stamp" > "${times_list[$idx]}" ]]; then
-                    files_list[$idx]="$file"
-                    times_list[$idx]="$iso_stamp"
-                fi
+            local stamp="${file_date}T${time_part}Z"
+            if [[ -z "$best_stamp" || "$stamp" > "$best_stamp" ]]; then
+                best_stamp="$stamp"
+                selected_file="$file"
+                selected_pipeline="$pipeline"
             fi
         else
             log "WARN: Unrecognized filename format: $filename"
         fi
     done < <(find "$month_dir" -mindepth 2 -maxdepth 2 -type f -name "briefing_${date_str}T*.md" -print0 2>/dev/null)
 
-    if [[ ${#pipelines_list[@]} -eq 0 ]]; then
+    if [[ -z "$selected_file" ]]; then
         log "WARN: No briefing files found for date $date_str"
         return 1
     fi
 
-    local merged_file="${dest_dir}/${year}-${month}-${day}.md"
-    : > "$merged_file"
+    # 已选择最新一份，开始写入页面
 
-    echo "---" >> "$merged_file"
-    echo "title: "${year}年${month}月${day}日 AI 简报"" >> "$merged_file"
-    echo "weight: $day_weight" >> "$merged_file"
-    echo "date: ${year}-${month}-${day}" >> "$merged_file"
-    echo "description: "AI每日简报 - ${year}年${month}月${day}日最新动态"" >> "$merged_file"
+    local daily_file="${dest_dir}/${year}-${month}-${day}.md"
+    : > "$daily_file"
 
-    local order=()
-    local idx=0
-    for pipeline in "${pipelines_list[@]}"; do
-        order+=("${pipeline}:::${idx}")
-        idx=$((idx + 1))
-    done
-    IFS=$'
-' order=($(printf '%s
-' "${order[@]}" | sort))
+    echo "---" >> "$daily_file"
+    echo "title: "${year}年${month}月${day}日 AI 简报"" >> "$daily_file"
+    echo "weight: $day_weight" >> "$daily_file"
+    echo "date: ${year}-${month}-${day}" >> "$daily_file"
+    echo "description: "AI每日简报 - ${year}年${month}月${day}日最新动态"" >> "$daily_file"
 
-    if [[ ${#order[@]} -gt 0 ]]; then
-        echo "sources:" >> "$merged_file"
-        for entry in "${order[@]}"; do
-            local pipeline="${entry%%:::*}"
-            echo "  - $(pipeline_display_name "$pipeline")" >> "$merged_file"
-        done
+    # 单一来源，无需排序
 
-        echo "source_slugs:" >> "$merged_file"
-        for entry in "${order[@]}"; do
-            local pipeline="${entry%%:::*}"
-            echo "  - $pipeline" >> "$merged_file"
-        done
-    else
-        echo "sources: []" >> "$merged_file"
-        echo "source_slugs: []" >> "$merged_file"
-    fi
+    echo "sources:" >> "$daily_file"
+    echo "  - $(pipeline_display_name "$selected_pipeline")" >> "$daily_file"
+    echo "source_slugs:" >> "$daily_file"
+    echo "  - $selected_pipeline" >> "$daily_file"
 
-    echo "toc: true" >> "$merged_file"
-    echo "---" >> "$merged_file"
+    echo "toc: true" >> "$daily_file"
+    echo "---" >> "$daily_file"
 
-    for entry in "${order[@]}"; do
-        local pipeline="${entry%%:::*}"
-        local idx="${entry##*:::}"
-        local file="${files_list[$idx]}"
-        local stamp="${times_list[$idx]}"
-        local friendly
-        friendly="$(pipeline_display_name "$pipeline")"
+    # 渲染正文：仅一份来源
+    {
+        echo ""
+        echo "## $(pipeline_display_name "$selected_pipeline")"
+        echo ""
+        render_markdown_body "$selected_file"
+        echo ""
+    } >> "$daily_file"
 
-        local time_display=""
-        if [[ "$stamp" =~ T([0-9]{2})([0-9]{2}) ]]; then
-            time_display="${BASH_REMATCH[1]}:${BASH_REMATCH[2]}"
-        fi
-
-        {
-            echo ""
-            if [[ -n "$time_display" ]]; then
-                echo "## ${friendly} — ${time_display} 更新"
-            else
-                echo "## ${friendly}"
-            fi
-            echo ""
-            render_markdown_body "$file"
-            echo ""
-        } >> "$merged_file"
-    done
-
-    log "Generated: $merged_file"
+    log "Generated: $daily_file"
 }
 
 # 生成月份索引页面
@@ -484,7 +430,7 @@ sync_content() {
 # =============================================================================
 
 main() {
-    log "AI News Content Sync v2.3"
+    log "AI News Content Sync v2.4"
     log "Project root: $PROJECT_ROOT"
     log "Source directory: $SOURCE_DIR"
     log "Content directory: $CONTENT_DIR"
