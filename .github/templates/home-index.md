@@ -2,7 +2,7 @@
 title: AI每日简报 - 您的人工智能情报站
 linkTitle: AI每日简报
 breadcrumbs: false
-description: "每日精选AI行业要闻、开源热点、学术前沿及大V观点。AI资讯；AI日报；AI知识库；AI教程；AI资讯日报；AI工具；AI Daily News"
+description: "每天 3 分钟掌握全球 AI 动态。围绕技术前沿、产业应用、资本市场与政策环境，AI 头条编辑部甄别可信信源，提供结构化摘要、要点判断与原文链接，支持邮件、Telegram、RSS 订阅。"
 cascade:
   type: docs
 ---
@@ -12,30 +12,33 @@ cascade:
     <h1 class="page-title text-5xl md:text-6xl font-bold mb-4 font-serif text-gray-900 dark:text-gray-100">
       AI每日简报
     </h1>
-    <div class="sub-head-en text-lg md:text-xl text-gray-600 dark:text-gray-400 italic mb-4">
-      ARTIFICIAL INTELLIGENCE DAILY BRIEFING
+    <div class="sub-head-en text-lg md:text-xl text-gray-600 dark:text-gray-400 italic mb-3">
+      GLOBAL AI MORNING BRIEF · TRUSTED INSIGHTS
     </div>
+    <p class="text-base md:text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto mb-6">
+      每天 3 分钟读懂全球 AI 生态。AI 头条编辑部对接权威媒体、企业发布与政策数据库，结合监测系统筛选可验证的原始信源，输出经核查的关键事实与背景脉络。
+    </p>
     <div class="max-w-4xl mx-auto">
       <div class="grid md:grid-cols-2 gap-4 text-sm text-gray-600 dark:text-gray-400">
         <div class="flex items-center justify-center">
           <span class="mr-2">🎯</span>
-          精选全球AI突破性进展：大模型发布、技术突破、产业应用、投融资事件、学术前沿
+          覆盖基础模型、行业落地、资本动向、政策监管与前沿研究，速览关键机会与风险
         </div>
         <div class="flex items-center justify-center">
-          <span class="mr-2">📊</span>
-          智能内容筛选，权威源头精准过滤，确保信息质量
+          <span class="mr-2">🧭</span>
+          结构化摘要与重点解读，帮助快速判断事件优先级及业务影响
         </div>
         <div class="flex items-center justify-center">
           <span class="mr-2">⚡</span>
-          每日自动更新，Claude AI生成专业摘要解读
+          每日早间更新，支持邮件简报、Telegram 频道与 RSS，多终端随时查阅
         </div>
         <div class="flex items-center justify-center">
-          <span class="mr-2">🔗</span>
-          原始推文链接+AI分析，信息完整可追溯
+          <span class="mr-2">🔍</span>
+          主题聚类与时间线梳理，追踪长期趋势与竞争格局演化
         </div>
         <div class="flex items-center justify-center">
-          <span class="mr-2">💡</span>
-          支持事件聚类分析，相关内容智能归组
+          <span class="mr-2">🤝</span>
+          原文链接与数据出处一键直达，可按模型、应用、政策等专题自定义关注
         </div>
       </div>
     </div>
