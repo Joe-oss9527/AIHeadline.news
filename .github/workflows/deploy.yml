@@ -132,7 +132,7 @@ jobs:
 
       - name: Build with Hugo
         env:
-          HUGO_CACHEDIR: ./.cache/hugo_cache
+          HUGO_CACHEDIR: ${{ github.workspace }}/.cache/hugo_cache
           HUGO_ENVIRONMENT: production
         run: |
           hugo \
@@ -254,7 +254,7 @@ jobs:
 
       - name: Build with Hugo
         env:
-          HUGO_CACHEDIR: ./.cache/hugo_cache
+          HUGO_CACHEDIR: ${{ github.workspace }}/.cache/hugo_cache
           HUGO_ENVIRONMENT: production
         run: |
           hugo \
