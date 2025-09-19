@@ -45,13 +45,8 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      # 步骤3: 检出新闻源仓库
-      - name: Checkout news source repo
-        uses: actions/checkout@v4  # 使用 v4 标签
-        with:
-          repository: 'YYvanYang/ai-news-vault'
-          path: 'source-news'
-          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}  # 私有仓库必须配置
+      - name: Update submodules
+        run: git submodule update --init --depth 1 source-news
 
       # 步骤4: 同步新闻文件
       - name: Sync markdown files
@@ -107,19 +102,14 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      - name: Update submodules
+        run: git submodule update --init --depth 1 source-news
+
       # 步骤2: 安装 Hugo
       - name: Install Hugo CLI
         run: |
           wget -O ${{ runner.temp }}/hugo.deb https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.deb \
           && sudo dpkg -i ${{ runner.temp }}/hugo.deb
-
-      # 步骤3: 检出新闻源仓库
-      - name: Checkout news source repo
-        uses: actions/checkout@v4
-        with:
-          repository: 'YYvanYang/ai-news-vault'
-          path: 'source-news'
-          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
 
       # 步骤4: 同步新闻文件
       - name: Sync markdown files
