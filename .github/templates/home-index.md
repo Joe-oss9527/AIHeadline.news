@@ -2,7 +2,7 @@
 title: AI每日简报 - 您的人工智能情报站
 linkTitle: AI每日简报
 breadcrumbs: false
-description: "每天 3 分钟掌握全球 AI 动态。围绕技术前沿、产业应用、资本市场与政策环境，AI 头条编辑部甄别可信信源，提供结构化摘要、要点判断与原文链接，支持邮件、Telegram、RSS 订阅。"
+description: "每天 3 分钟，速览全球 AI 关键信息。自动聚合公开权威源，事件聚类 + LLM 摘要，原文一键直达；支持网站、RSS 与 Telegram 订阅。"
 cascade:
   type: docs
 ---
@@ -13,32 +13,28 @@ cascade:
       AI每日简报
     </h1>
     <div class="sub-head-en text-lg md:text-xl text-gray-600 dark:text-gray-400 italic mb-3">
-      GLOBAL AI MORNING BRIEF · TRUSTED INSIGHTS
+      GLOBAL AI MORNING BRIEF · VERIFIED LINKS
     </div>
     <p class="text-base md:text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto mb-6">
-      每天 3 分钟读懂全球 AI 生态。AI 头条编辑部对接权威媒体、企业发布与政策数据库，结合监测系统筛选可验证的原始信源，输出经核查的关键事实与背景脉络。
+      每天 3 分钟，速览全球 AI 关键信息。自动聚合公开权威源，事件聚类 + LLM 摘要，原文一键直达；支持网站、RSS 与 Telegram 订阅。
     </p>
     <div class="max-w-4xl mx-auto">
       <div class="grid md:grid-cols-2 gap-4 text-sm text-gray-600 dark:text-gray-400">
         <div class="flex items-center justify-center">
-          <span class="mr-2">🎯</span>
-          覆盖基础模型、行业落地、资本动向、政策监管与前沿研究，速览关键机会与风险
+          <span class="mr-2">📰</span>
+          多源聚合：Hacker News / Twitter / Reddit 等公开渠道
         </div>
         <div class="flex items-center justify-center">
-          <span class="mr-2">🧭</span>
-          结构化摘要与重点解读，帮助快速判断事件优先级及业务影响
+          <span class="mr-2">🧠</span>
+          智能处理：嵌入 → 去重 → 话题聚类（HDBSCAN）→ 重排序（BGE-Reranker）→ 摘要
         </div>
         <div class="flex items-center justify-center">
-          <span class="mr-2">⚡</span>
-          每日早间更新，支持邮件简报、Telegram 频道与 RSS，多终端随时查阅
+          <span class="mr-2">🔗</span>
+          原文可追溯：保留原始链接，便于快速核验与延伸阅读
         </div>
         <div class="flex items-center justify-center">
-          <span class="mr-2">🔍</span>
-          主题聚类与时间线梳理，追踪长期趋势与竞争格局演化
-        </div>
-        <div class="flex items-center justify-center">
-          <span class="mr-2">🤝</span>
-          原文链接与数据出处一键直达，可按模型、应用、政策等专题自定义关注
+          <span class="mr-2">📡</span>
+          多渠道分发：网站阅读、RSS 订阅、Telegram 推送
         </div>
       </div>
     </div>
