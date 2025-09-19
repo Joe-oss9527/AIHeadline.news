@@ -11,7 +11,7 @@ on:
 
 # 设置GITHUB_TOKEN的权限
 permissions:
-  contents: read
+  contents: write  # 需要写权限来自动更新submodule
   pages: write
   id-token: write
 
@@ -47,7 +47,20 @@ jobs:
 
       - name: Update submodules
         run: |
-          git submodule update --init --depth 1 source-news
+          # Initialize and update to latest remote commit
+          git submodule update --init --remote source-news
+          # Check if submodule was updated and commit if necessary
+          if ! git diff --quiet source-news; then
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git add source-news
+            git commit -m "chore(submodule): auto-update source-news to latest
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+            git push
+          fi
 
       - name: Restore sync cache
         uses: actions/cache@v4
@@ -176,7 +189,20 @@ jobs:
 
       - name: Update submodules
         run: |
-          git submodule update --init --depth 1 source-news
+          # Initialize and update to latest remote commit
+          git submodule update --init --remote source-news
+          # Check if submodule was updated and commit if necessary
+          if ! git diff --quiet source-news; then
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git add source-news
+            git commit -m "chore(submodule): auto-update source-news to latest
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+            git push
+          fi
 
       - name: Restore sync cache
         uses: actions/cache@v4
