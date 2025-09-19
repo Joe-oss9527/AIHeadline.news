@@ -86,8 +86,10 @@ jobs:
           # 检测站点代码/模板是否变更（需要立即生效）
           CODE_CHANGED_FILES="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" -- .github/scripts .github/templates layouts hugo.toml assets static archetypes || true)"
           if [[ -n "$CODE_CHANGED_FILES" ]]; then
+            CODE_CHANGED="true"
             echo "CODE_CHANGED=true" | tee -a "$GITHUB_ENV"
           else
+            CODE_CHANGED="false"
             echo "CODE_CHANGED=false" | tee -a "$GITHUB_ENV"
           fi
           # 决定同步模式：首次运行或每周日（UTC）全量，否则增量
@@ -209,8 +211,10 @@ jobs:
           echo "CHANGED_DATES=${CHANGED_DATES}" | tee -a "$GITHUB_ENV"
           CODE_CHANGED_FILES="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" -- .github/scripts .github/templates layouts hugo.toml assets static archetypes || true)"
           if [[ -n "$CODE_CHANGED_FILES" ]]; then
+            CODE_CHANGED="true"
             echo "CODE_CHANGED=true" | tee -a "$GITHUB_ENV"
           else
+            CODE_CHANGED="false"
             echo "CODE_CHANGED=false" | tee -a "$GITHUB_ENV"
           fi
           DOW=$(date -u +%u)
