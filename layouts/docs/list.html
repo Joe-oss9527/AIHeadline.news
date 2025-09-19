@@ -20,7 +20,9 @@
           
           {{ .Content }}
         </div>
-        {{ partial "components/last-updated.html" . }}
+        {{ if eq $pageType "normal" }}
+          {{ partial "components/last-updated.html" . }}
+        {{ end }}
         {{ partial "components/pager.html" . }}
         {{ partial "components/comments.html" . }}
       </main>
