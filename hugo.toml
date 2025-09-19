@@ -28,7 +28,7 @@ path = "github.com/imfing/hextra"
 
 # 站点参数
 [params]
-description = "每天 3 分钟掌握全球 AI 动态。围绕技术前沿、产业应用、资本市场与政策环境，AI 头条编辑部甄别可信信源，提供结构化摘要、要点判断与原文链接，支持邮件、Telegram、RSS 订阅。"
+description = "每天 3 分钟，速览全球 AI 关键信息。自动聚合公开权威源，事件聚类 + LLM 摘要，原文一键直达；支持网站、RSS 与 Telegram 订阅。"
 rssFullContent = true
 
 # 主题外观配置
