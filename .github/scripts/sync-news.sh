@@ -87,34 +87,7 @@ calculate_weight() {
     echo $((100000 - (year_num - 2000) * 1000 - month_num * 10 - day_num))
 }
 
-# 将 pipeline 标识转换成可读名称
-pipeline_display_name() {
-    local slug="$1"
-    case "$slug" in
-        ai-briefing-twitter-list)
-            echo "AI 快讯 · Twitter"
-            ;;
-        ai-briefing-hackernews)
-            # 统一为仅名称（去后缀）
-            echo "Hacker News"
-            ;;
-        ai-briefing-reddit)
-            # 统一为仅名称（去后缀）
-            echo "Reddit"
-            ;;
-        ai-briefing-hn)
-            # 统一为仅名称（去后缀）
-            echo "Hacker News"
-            ;;
-        ai-briefing-all)
-            echo "AI 简报"
-            ;;
-        *)
-            # 默认将 slug 转换为可读形式
-            echo "${slug//-/ }" | sed 's/\b./\u&/g'
-            ;;
-    esac
-}
+## 已废弃：不再基于 pipeline slug 取显示名，直接使用源 Markdown 的 H1
 
 # 将 Markdown 标题级别整体下调一级，避免页面出现多个 H1
 render_markdown_body() {
@@ -207,11 +180,12 @@ generate_daily_page() {
 
     # 单一来源，无需排序
 
-    # 从源 Markdown 抽取 H1 作为来源名，若缺失则回退到映射
+    # 从源 Markdown 抽取 H1 作为来源名，若缺失则回退到 slug 的可读形式
     local display_name
     display_name="$(awk '/^# /{ sub(/^# /, ""); print; exit }' "$selected_file" | sed 's/^\s*//; s/\s*$//')"
     if [[ -z "$display_name" ]]; then
-        display_name="$(pipeline_display_name "$selected_pipeline")"
+        # 将 slug 中的连字符替换为空格作为简易回退
+        display_name="${selected_pipeline//-/ }"
     fi
     echo "sources:" >> "$daily_file"
     echo "  - $display_name" >> "$daily_file"
