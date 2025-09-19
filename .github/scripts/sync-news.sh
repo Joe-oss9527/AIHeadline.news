@@ -126,10 +126,8 @@ path = Path(sys.argv[1])
 text = path.read_text(encoding='utf-8')
 lines = text.splitlines()
 output = []
-start_index = 0
-if lines and lines[0].startswith('# '):
-    start_index = 1
-for line in lines[start_index:]:
+# 不跳过首行 H1，而是将所有一级标题下调为 H2，避免页面出现多个 H1
+for line in lines:
     if line.startswith('# '):
         output.append('## ' + line[2:].lstrip())
     else:
@@ -209,18 +207,22 @@ generate_daily_page() {
 
     # 单一来源，无需排序
 
+    # 从源 Markdown 抽取 H1 作为来源名，若缺失则回退到映射
+    local display_name
+    display_name="$(awk '/^# /{ sub(/^# /, ""); print; exit }' "$selected_file" | sed 's/^\s*//; s/\s*$//')"
+    if [[ -z "$display_name" ]]; then
+        display_name="$(pipeline_display_name "$selected_pipeline")"
+    fi
     echo "sources:" >> "$daily_file"
-    echo "  - $(pipeline_display_name "$selected_pipeline")" >> "$daily_file"
+    echo "  - $display_name" >> "$daily_file"
     echo "source_slugs:" >> "$daily_file"
     echo "  - $selected_pipeline" >> "$daily_file"
 
     echo "toc: true" >> "$daily_file"
     echo "---" >> "$daily_file"
 
-    # 渲染正文：仅一份来源
+    # 渲染正文：仅一份来源（保留源文件 H1，已在渲染中降级为 H2）
     {
-        echo ""
-        echo "## $(pipeline_display_name "$selected_pipeline")"
         echo ""
         render_markdown_body "$selected_file"
         echo ""
