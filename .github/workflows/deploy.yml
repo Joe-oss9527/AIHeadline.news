@@ -26,8 +26,32 @@ defaults:
     shell: bash
 
 jobs:
+  # 检查并更新子模块
+  check-submodule:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout website repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Check and update submodule
+        run: |
+          # Initialize and update to latest remote commit
+          git submodule update --init --remote source-news
+          # Check if submodule was updated and commit if necessary
+          if ! git diff --quiet source-news; then
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git add source-news
+            git commit -m "chore(submodule): auto-update source-news to latest"
+            git push
+          fi
+
   # 构建任务
   build:
+    needs: check-submodule
     runs-on: ubuntu-24.04
     env:
       HUGO_VERSION: 0.148.1
@@ -47,20 +71,7 @@ jobs:
 
       - name: Update submodules
         run: |
-          # Initialize and update to latest remote commit
-          git submodule update --init --remote source-news
-          # Check if submodule was updated and commit if necessary
-          if ! git diff --quiet source-news; then
-            git config --local user.email "action@github.com"
-            git config --local user.name "GitHub Action"
-            git add source-news
-            git commit -m "chore(submodule): auto-update source-news to latest
-
-🤖 Generated with [Claude Code](https://claude.ai/code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
-            git push
-          fi
+          git submodule update --init --depth 1 source-news
 
       - name: Restore sync cache
         uses: actions/cache@v4
@@ -175,6 +186,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
   # 部署到Cloudflare Worker
   deploy-cf-worker:
+    needs: check-submodule
     runs-on: ubuntu-24.04
     if: github.ref == 'refs/heads/main'
     env:
@@ -189,20 +201,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
       - name: Update submodules
         run: |
-          # Initialize and update to latest remote commit
-          git submodule update --init --remote source-news
-          # Check if submodule was updated and commit if necessary
-          if ! git diff --quiet source-news; then
-            git config --local user.email "action@github.com"
-            git config --local user.name "GitHub Action"
-            git add source-news
-            git commit -m "chore(submodule): auto-update source-news to latest
-
-🤖 Generated with [Claude Code](https://claude.ai/code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
-            git push
-          fi
+          git submodule update --init --depth 1 source-news
 
       - name: Restore sync cache
         uses: actions/cache@v4
