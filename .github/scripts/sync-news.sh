@@ -95,13 +95,16 @@ pipeline_display_name() {
             echo "AI 快讯 · Twitter"
             ;;
         ai-briefing-hackernews)
-            echo "Hacker News 热点"
+            # 统一为仅名称（去后缀）
+            echo "Hacker News"
             ;;
         ai-briefing-reddit)
-            echo "Reddit 精选"
+            # 统一为仅名称（去后缀）
+            echo "Reddit"
             ;;
         ai-briefing-hn)
-            echo "Hacker News 日报"
+            # 统一为仅名称（去后缀）
+            echo "Hacker News"
             ;;
         ai-briefing-all)
             echo "AI 简报"
