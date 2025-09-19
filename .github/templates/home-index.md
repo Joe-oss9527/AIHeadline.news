@@ -13,7 +13,7 @@ cascade:
       AI每日简报
     </h1>
     <div class="sub-head-en text-lg md:text-xl text-gray-600 dark:text-gray-400 italic mb-3">
-      GLOBAL AI MORNING BRIEF · VERIFIED LINKS
+      GLOBAL AI MORNING BRIEF · TRUSTED INSIGHTS
     </div>
     <p class="text-base md:text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto mb-6">
       每天 3 分钟，速览全球 AI 关键信息。自动聚合公开权威源，事件聚类 + LLM 摘要，原文一键直达；支持网站、RSS 与 Telegram 订阅。
