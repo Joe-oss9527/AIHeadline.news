@@ -46,13 +46,74 @@ jobs:
           fetch-depth: 0
 
       - name: Update submodules
-        run: git submodule update --init --depth 1 source-news
+        run: |
+          git submodule update --init --depth 1 source-news
 
-      # 步骤4: 同步新闻文件
+      - name: Restore sync cache
+        uses: actions/cache@v4
+        with:
+          path: ./.cache
+          key: sync-state-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            sync-state-${{ github.ref_name }}-
+            sync-state-
+
+      - name: Compute changed dates
+        id: changed
+        run: |
+          set -euo pipefail
+          mkdir -p .cache
+          STATE_FILE=.cache/source_news_sha
+          OLD_SUB=""
+          if [[ -f "$STATE_FILE" ]]; then
+            OLD_SUB="$(cat "$STATE_FILE" || true)"
+          fi
+          # 读取当前超级项目中的 submodule 提交指针
+          NEW_SUB="$(git ls-tree HEAD source-news | awk '{print $3}')"
+          echo "Old submodule SHA: ${OLD_SUB:-<none>}"
+          echo "New submodule SHA: ${NEW_SUB:-<none>}"
+          CHANGED_DATES=""
+          if [[ -n "${OLD_SUB}" && -n "${NEW_SUB}" && "${OLD_SUB}" != "${NEW_SUB}" ]]; then
+            # 确保 submodule 仓库包含所需对象
+            git -C source-news fetch --depth=500 origin || true
+            # 列出变更的 briefing markdown 文件，提取日期
+            CHANGED_FILES="$(git -C source-news diff --name-only "${OLD_SUB}" "${NEW_SUB}" -- '*/briefing_*.md' || true)"
+            if [[ -n "${CHANGED_FILES}" ]]; then
+              CHANGED_DATES=$(printf '%s\n' "${CHANGED_FILES}" | sed -n 's#.*briefing_\([0-9]\{8\}\)T[0-9]\{6\}Z\.md#\1#p' | sort -u | paste -sd, -)
+            fi
+          fi
+          echo "CHANGED_DATES=${CHANGED_DATES}" | tee -a "$GITHUB_ENV"
+          # 检测站点代码/模板是否变更（需要立即生效）
+          CODE_CHANGED_FILES="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" -- .github/scripts .github/templates layouts hugo.toml assets static archetypes || true)"
+          if [[ -n "$CODE_CHANGED_FILES" ]]; then
+            echo "CODE_CHANGED=true" | tee -a "$GITHUB_ENV"
+          else
+            echo "CODE_CHANGED=false" | tee -a "$GITHUB_ENV"
+          fi
+          # 决定同步模式：首次运行或每周日（UTC）全量，否则增量
+          DOW=$(date -u +%u)
+          if [[ ! -f "$STATE_FILE" || -z "${OLD_SUB}" ]]; then
+            echo "SYNC_MODE=full" | tee -a "$GITHUB_ENV"
+            echo "First run detected -> full rebuild"
+          elif [[ "$DOW" == "7" ]]; then
+            echo "SYNC_MODE=full" | tee -a "$GITHUB_ENV"
+          elif [[ "$CODE_CHANGED" == "true" ]]; then
+            echo "SYNC_MODE=full" | tee -a "$GITHUB_ENV"
+            echo "Site code/templates changed -> full rebuild"
+          elif [[ "${GITHUB_EVENT_NAME}" == "push" && -z "${CHANGED_DATES}" ]]; then
+            echo "SYNC_MODE=full" | tee -a "$GITHUB_ENV"
+            echo "Push with no content changes -> full rebuild"
+          else
+            echo "SYNC_MODE=incremental" | tee -a "$GITHUB_ENV"
+          fi
+          # 保存本次 submodule 指针
+          printf '%s' "${NEW_SUB}" > "$STATE_FILE"
+
+      # 步骤4: 同步新闻文件（增量/全量按 SYNC_MODE）
       - name: Sync markdown files
         run: |
           chmod +x ./.github/scripts/sync-news.sh
-          ./.github/scripts/sync-news.sh
+          ./.github/scripts/sync-news.sh --mode="${SYNC_MODE}" --dates="${CHANGED_DATES}"
 
       # 步骤5: 设置Pages
       - name: Setup Pages
@@ -60,9 +121,18 @@ jobs:
         uses: actions/configure-pages@v5  # 使用最新版本
 
       # 步骤6: 构建网站
+      - name: Restore Hugo cache
+        uses: actions/cache@v4
+        with:
+          path: ./.cache/hugo_cache
+          key: hugo-cache-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            hugo-cache-${{ runner.os }}-${{ github.ref_name }}-
+            hugo-cache-${{ runner.os }}-
+
       - name: Build with Hugo
         env:
-          HUGO_CACHEDIR: ${{ runner.temp }}/hugo_cache
+          HUGO_CACHEDIR: ./.cache/hugo_cache
           HUGO_ENVIRONMENT: production
         run: |
           hugo \
@@ -103,7 +173,62 @@ jobs:
           fetch-depth: 0
 
       - name: Update submodules
-        run: git submodule update --init --depth 1 source-news
+        run: |
+          git submodule update --init --depth 1 source-news
+
+      - name: Restore sync cache
+        uses: actions/cache@v4
+        with:
+          path: ./.cache
+          key: sync-state-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            sync-state-${{ github.ref_name }}-
+            sync-state-
+
+      - name: Compute changed dates
+        id: changed
+        run: |
+          set -euo pipefail
+          mkdir -p .cache
+          STATE_FILE=.cache/source_news_sha
+          OLD_SUB=""
+          if [[ -f "$STATE_FILE" ]]; then
+            OLD_SUB="$(cat "$STATE_FILE" || true)"
+          fi
+          NEW_SUB="$(git ls-tree HEAD source-news | awk '{print $3}')"
+          echo "Old submodule SHA: ${OLD_SUB:-<none>}"
+          echo "New submodule SHA: ${NEW_SUB:-<none>}"
+          CHANGED_DATES=""
+          if [[ -n "${OLD_SUB}" && -n "${NEW_SUB}" && "${OLD_SUB}" != "${NEW_SUB}" ]]; then
+            git -C source-news fetch --depth=500 origin || true
+            CHANGED_FILES="$(git -C source-news diff --name-only "${OLD_SUB}" "${NEW_SUB}" -- '*/briefing_*.md' || true)"
+            if [[ -n "${CHANGED_FILES}" ]]; then
+              CHANGED_DATES=$(printf '%s\n' "${CHANGED_FILES}" | sed -n 's#.*briefing_\([0-9]\{8\}\)T[0-9]\{6\}Z\.md#\1#p' | sort -u | paste -sd, -)
+            fi
+          fi
+          echo "CHANGED_DATES=${CHANGED_DATES}" | tee -a "$GITHUB_ENV"
+          CODE_CHANGED_FILES="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" -- .github/scripts .github/templates layouts hugo.toml assets static archetypes || true)"
+          if [[ -n "$CODE_CHANGED_FILES" ]]; then
+            echo "CODE_CHANGED=true" | tee -a "$GITHUB_ENV"
+          else
+            echo "CODE_CHANGED=false" | tee -a "$GITHUB_ENV"
+          fi
+          DOW=$(date -u +%u)
+          if [[ ! -f "$STATE_FILE" || -z "${OLD_SUB}" ]]; then
+            echo "SYNC_MODE=full" | tee -a "$GITHUB_ENV"
+            echo "First run detected -> full rebuild"
+          elif [[ "$DOW" == "7" ]]; then
+            echo "SYNC_MODE=full" | tee -a "$GITHUB_ENV"
+          elif [[ "$CODE_CHANGED" == "true" ]]; then
+            echo "SYNC_MODE=full" | tee -a "$GITHUB_ENV"
+            echo "Site code/templates changed -> full rebuild"
+          elif [[ "${GITHUB_EVENT_NAME}" == "push" && -z "${CHANGED_DATES}" ]]; then
+            echo "SYNC_MODE=full" | tee -a "$GITHUB_ENV"
+            echo "Push with no content changes -> full rebuild"
+          else
+            echo "SYNC_MODE=incremental" | tee -a "$GITHUB_ENV"
+          fi
+          printf '%s' "${NEW_SUB}" > "$STATE_FILE"
 
       # 步骤2: 安装 Hugo
       - name: Install Hugo CLI
@@ -111,16 +236,25 @@ jobs:
           wget -O ${{ runner.temp }}/hugo.deb https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.deb \
           && sudo dpkg -i ${{ runner.temp }}/hugo.deb
 
-      # 步骤4: 同步新闻文件
+      # 步骤4: 同步新闻文件（增量/全量按 SYNC_MODE）
       - name: Sync markdown files
         run: |
           chmod +x ./.github/scripts/sync-news.sh
-          ./.github/scripts/sync-news.sh
+          ./.github/scripts/sync-news.sh --mode="${SYNC_MODE}" --dates="${CHANGED_DATES}"
 
       # 步骤5: 构建网站
+      - name: Restore Hugo cache
+        uses: actions/cache@v4
+        with:
+          path: ./.cache/hugo_cache
+          key: hugo-cache-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            hugo-cache-${{ runner.os }}-${{ github.ref_name }}-
+            hugo-cache-${{ runner.os }}-
+
       - name: Build with Hugo
         env:
-          HUGO_CACHEDIR: ${{ runner.temp }}/hugo_cache
+          HUGO_CACHEDIR: ./.cache/hugo_cache
           HUGO_ENVIRONMENT: production
         run: |
           hugo \

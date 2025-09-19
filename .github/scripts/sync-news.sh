@@ -8,6 +8,65 @@
 set -euo pipefail
 
 # =============================================================================
+# 参数与环境（增量同步支持）
+# =============================================================================
+
+MODE="${SYNC_MODE:-auto}"           # auto|full|incremental
+DATES_ARG=""                        # 逗号分隔的 YYYYMMDD 列表（来自 --dates 或 CHANGED_DATES 环境变量）
+LOOKBACK_DAYS="${LOOKBACK_DAYS:-7}" # 无法检测变更时的兜底回溯天数
+MAX_CHANGED_DAYS="${MAX_CHANGED_DAYS:-100}" # 变更多于该阈值时回退全量
+
+parse_args() {
+    for arg in "$@"; do
+        case "$arg" in
+            --mode=*)
+                MODE="${arg#*=}"
+                ;;
+            --dates=*)
+                DATES_ARG="${arg#*=}"
+                ;;
+            --lookback-days=*)
+                LOOKBACK_DAYS="${arg#*=}"
+                ;;
+            --max-changed-days=*)
+                MAX_CHANGED_DAYS="${arg#*=}"
+                ;;
+            *)
+                # ignore unknown flags for forward-compat
+                ;;
+        esac
+    done
+
+    # 允许从环境变量传入日期
+    if [[ -z "$DATES_ARG" ]] && [[ -n "${CHANGED_DATES:-}" ]]; then
+        DATES_ARG="$CHANGED_DATES"
+    fi
+
+    # 标准化 MODE
+    case "$MODE" in
+        auto|full|incremental) ;;
+        *) MODE="auto" ;;
+    esac
+}
+
+# 将逗号/空白分隔的日期串转为数组，且去重、校验
+to_date_array() {
+    local input="$1"
+    local out=()
+    # 将逗号替换为空白，便于 for 循环
+    input="${input//,/ }"
+    for tok in $input; do
+        if validate_date "$tok"; then
+            out+=("$tok")
+        fi
+    done
+    # 去重并以空格分隔输出，便于旧版 bash 解析
+    if [[ ${#out[@]} -gt 0 ]]; then
+        printf '%s\n' "${out[@]}" | sort -u | tr '\n' ' '
+    fi
+}
+
+# =============================================================================
 # 配置常量
 # =============================================================================
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -205,6 +264,18 @@ generate_daily_page() {
     log "Generated: $daily_file"
 }
 
+# 删除某天生成的页面（用于增量同步：当该日无源文件时清理旧产物）
+delete_daily_page() {
+    local dest_dir="$1"
+    local date_str="$2"
+    eval "$(parse_date "$date_str")"
+    local daily_file="${dest_dir}/${year}-${month}-${day}.md"
+    if [[ -f "$daily_file" ]]; then
+        rm -f "$daily_file"
+        log "Removed stale: $daily_file"
+    fi
+}
+
 # 生成月份索引页面
 generate_month_index() {
     local dest_dir="$1"
@@ -341,8 +412,8 @@ process_month() {
     log "Completed month: $year-$month (${#dates[@]} days)"
 }
 
-# 主同步函数
-sync_content() {
+# 全量同步函数（兼容旧逻辑）
+sync_content_full() {
     log "Starting content synchronization..."
     
     # 验证源目录
@@ -404,6 +475,99 @@ sync_content() {
     fi
 }
 
+# 增量同步：仅处理受影响的日期和对应月份
+sync_content_incremental() {
+    log "Starting incremental synchronization..."
+
+    [[ -d "$SOURCE_DIR" ]] || die "Source directory not found: $SOURCE_DIR"
+    mkdir -p "$CONTENT_DIR"
+
+    # 解析受影响日期（空格分隔）
+    local dates_str
+    dates_str="$(to_date_array "$DATES_ARG")"
+    # shellcheck disable=SC2206
+    local dates=( $dates_str )
+
+    if [[ ${#dates[@]} -eq 0 ]]; then
+        log "No valid changed dates provided; nothing to update"
+        # 兜底：仍然刷新首页，保持统计与导航更新
+        generate_home_page
+        return 0
+    fi
+
+    # 变更过多时回退全量
+    if [[ ${#dates[@]} -gt ${MAX_CHANGED_DAYS} ]]; then
+        log "Changed days (${#dates[@]}) exceed threshold (${MAX_CHANGED_DAYS}); falling back to full rebuild"
+        sync_content_full
+        return 0
+    fi
+
+    # 收集受影响的月份集合（后续再去重）
+    local affected_months=()
+
+    for date_str in "${dates[@]}"; do
+        eval "$(parse_date "$date_str")"
+
+        local month_src_dir="${SOURCE_DIR}/${year}/${month}"
+        local dest_dir="${CONTENT_DIR}/${year}-${month}"
+        mkdir -p "$dest_dir"
+
+        # 生成当日页面；如无源文件则删除既有页面
+        if generate_daily_page "$month_src_dir" "$dest_dir" "$date_str"; then
+            :
+        else
+            delete_daily_page "$dest_dir" "$date_str"
+        fi
+
+        affected_months+=("${year}-${month}")
+    done
+
+    # 去重月份
+    if [[ ${#affected_months[@]} -gt 0 ]]; then
+        # 使用临时文件进行去重，兼容旧版 bash
+        local _tmp_months
+        _tmp_months=$(printf '%s\n' "${affected_months[@]}" | sort -u)
+        # 重新装入数组
+        # shellcheck disable=SC2206
+        affected_months=( $_tmp_months )
+    fi
+
+    # 更新受影响月份的索引
+    for ym in "${affected_months[@]}"; do
+        local y="${ym%-*}"
+        local m="${ym#*-}"
+        local month_src_dir="${SOURCE_DIR}/${y}/${m}"
+        local dest_dir="${CONTENT_DIR}/${ym}"
+
+        # 收集该月所有有效日期（从源目录重新计算）
+        local month_dates=()
+        if [[ -d "$month_src_dir" ]]; then
+            while IFS= read -r date_str; do
+                [[ -n "$date_str" ]] && month_dates+=("$date_str")
+            done < <(collect_month_dates "$month_src_dir")
+        fi
+
+        if [[ ${#month_dates[@]} -eq 0 ]]; then
+            # 若该月已无任何源数据，清理目标目录
+            if [[ -d "$dest_dir" ]]; then
+                rm -rf "$dest_dir"
+                log "Removed empty month directory: $dest_dir"
+            fi
+        else
+            mkdir -p "$dest_dir"
+            generate_month_index "$dest_dir" "$y" "$m" "${month_dates[@]}"
+        fi
+    done
+
+    # 刷新首页
+    generate_home_page
+
+    # 汇总输出
+    local total_files
+    total_files=$(find "$CONTENT_DIR" -name "*.md" -type f 2>/dev/null | wc -l)
+    log "Incremental synchronization complete: $total_files files now present"
+}
+
 # =============================================================================
 # 主程序入口
 # =============================================================================
@@ -414,8 +578,29 @@ main() {
     log "Source directory: $SOURCE_DIR"
     log "Content directory: $CONTENT_DIR"
     
-    sync_content
-    
+    parse_args "$@"
+    log "Mode: $MODE"
+    if [[ -n "$DATES_ARG" ]]; then
+        log "Changed dates: $DATES_ARG"
+    fi
+
+    case "$MODE" in
+        full)
+            sync_content_full
+            ;;
+        incremental)
+            sync_content_incremental
+            ;;
+        auto)
+            # 有变更日期则走增量，否则全量
+            if [[ -n "$DATES_ARG" ]]; then
+                sync_content_incremental
+            else
+                sync_content_full
+            fi
+            ;;
+    esac
+
     log "Sync process completed successfully"
 }
 
