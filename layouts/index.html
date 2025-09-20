@@ -1,0 +1,64 @@
+{{ define "title" }}
+  {{ $pattern := `\\d{4}-\\d{2}/\\d{4}-\\d{2}-\\d{2}\\.md$` }}
+  {{ $dailyPages := where .Site.RegularPages "File.Path" "matches" $pattern }}
+  {{ $sortedDaily := sort $dailyPages "Date" "desc" }}
+  {{ $pageTitle := .Site.Title }}
+  {{ if gt (len $sortedDaily) 0 }}
+    {{ $latest := index $sortedDaily 0 }}
+    {{ with $latest.Title }}
+      {{ $pageTitle = printf "%s | %s" . $.Site.Title }}
+    {{ end }}
+  {{ end }}
+  {{ $pageTitle }}
+{{ end }}
+
+{{ define "description" }}
+  {{ $pattern := `\\d{4}-\\d{2}/\\d{4}-\\d{2}-\\d{2}\\.md$` }}
+  {{ $dailyPages := where .Site.RegularPages "File.Path" "matches" $pattern }}
+  {{ $sortedDaily := sort $dailyPages "Date" "desc" }}
+  {{ $defaultDescription := default .Site.Title .Site.Params.description }}
+  {{ $description := $defaultDescription }}
+  {{ if gt (len $sortedDaily) 0 }}
+    {{ $latest := index $sortedDaily 0 }}
+    {{ if $latest.Params.description }}
+      {{ $description = $latest.Params.description }}
+    {{ else if $latest.Description }}
+      {{ $description = $latest.Description }}
+    {{ else if $latest.Summary }}
+      {{ $description = truncate 160 (plainify $latest.Summary) }}
+    {{ end }}
+  {{ end }}
+  {{ $description }}
+{{ end }}
+
+{{ define "main" }}
+  {{ $pattern := `\\d{4}-\\d{2}/\\d{4}-\\d{2}-\\d{2}\\.md$` }}
+  {{ $dailyPages := where .Site.RegularPages "File.Path" "matches" $pattern }}
+  {{ $sortedDaily := sort $dailyPages "Date" "desc" }}
+  {{ if gt (len $sortedDaily) 0 }}
+    {{ $latest := index $sortedDaily 0 }}
+    <div class='hx-mx-auto hx-flex {{ partial "utils/page-width" $latest }}'>
+      {{ partial "sidebar.html" (dict "context" $latest) }}
+      {{ partial "toc.html" $latest }}
+      <article class="hx-w-full hx-break-words hx-flex hx-min-h-[calc(100vh-var(--navbar-height))] hx-min-w-0 hx-justify-center hx-pb-8 hx-pr-[calc(env(safe-area-inset-right)-1.5rem)]">
+        <main class="hx-w-full hx-min-w-0 hx-max-w-6xl hx-px-6 hx-pt-4 md:hx-px-12">
+          {{ partial "breadcrumb.html" $latest }}
+          <div class="content">
+            {{ partial "title-controller.html" (dict "context" $latest "pageType" "daily") }}
+            {{ partial "daily-header.html" $latest }}
+            {{ $latest.Content }}
+          </div>
+          {{ partial "components/pager.html" $latest }}
+          {{ partial "components/comments.html" $latest }}
+        </main>
+      </article>
+    </div>
+  {{ else }}
+    <div class="hx-mx-auto hx-flex hx-min-h-[calc(100vh-var(--navbar-height))] hx-items-center hx-justify-center">
+      <div class="hx-max-w-2xl hx-rounded-xl hx-border hx-border-slate-200 hx-bg-white hx-p-8 hx-text-center hx-shadow-sm dark:hx-border-slate-700 dark:hx-bg-slate-800">
+        <h1 class="hx-text-2xl hx-font-semibold hx-text-slate-900 dark:hx-text-slate-100">AI 每日简报</h1>
+        <p class="hx-mt-4 hx-text-base hx-text-slate-600 dark:hx-text-slate-300">暂未找到可展示的每日简报内容，请稍后再来看看。</p>
+      </div>
+    </div>
+  {{ end }}
+{{ end }}

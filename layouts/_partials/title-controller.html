@@ -1,8 +1,8 @@
-{{/* 
+{{/*
   标题控制器 - 统一处理标题显示逻辑
   参数:
   - context: 当前页面上下文 (.)
-  - pageType: 页面类型 ("daily" | "monthIndex" | "normal")
+  - pageType: 页面类型 ("daily" | "normal")
 */}}
 
 {{/* 检查是否显示标题 */}}
@@ -11,24 +11,13 @@
   {{ $showTitle = .context.Params.showTitle }}
 {{ end }}
 
-{{/* 根据页面类型和配置决定是否显示标题 */}}
-{{ $shouldDisplay := false }}
-{{ if and .context.Title $showTitle }}
-  {{ if eq .pageType "normal" }}
-    {{ $shouldDisplay = true }}
-  {{ else if eq .pageType "daily" }}
-    {{/* 日报页面不显示标题 */}}
-    {{ $shouldDisplay = false }}
-  {{ else if eq .pageType "monthIndex" }}
-    {{/* 月度索引页面不显示标题 */}}
-    {{ $shouldDisplay = false }}
-  {{ else }}
-    {{/* 默认显示标题 */}}
-    {{ $shouldDisplay = true }}
-  {{ end }}
+{{ $pageType := default "normal" .pageType }}
+{{ $shouldDisplay := and .context.Title $showTitle }}
+{{ if eq $pageType "daily" }}
+  {{ $shouldDisplay = false }}
 {{ end }}
 
 {{/* 显示标题 */}}
 {{ if $shouldDisplay }}
   <h1>{{ .context.Title }}</h1>
-{{ end }} 
+{{ end }}
