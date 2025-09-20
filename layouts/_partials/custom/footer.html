@@ -13,9 +13,71 @@ async function load(t,id){
     document.getElementById(id).textContent='—';
   }
 }
-load('total','pv'); 
+load('total','pv');
 load('online','uv');
 setInterval(()=>load('online','uv'),30000);
+</script>
+
+<script type="module">
+const setupSidebarMenuToggle = () => {
+  const sidebar = document.querySelector('aside.sidebar-container');
+  if (!sidebar) return;
+
+  const collapsibleItems = sidebar.querySelectorAll('li[data-collapsible="true"]');
+  collapsibleItems.forEach((item) => {
+    const trigger = item.querySelector(':scope > a[data-sidebar-toggle]');
+    if (!trigger) return;
+
+    const targetId = trigger.getAttribute('aria-controls');
+    if (!targetId) return;
+
+    const panel = document.getElementById(targetId);
+    if (!panel) return;
+
+    const syncState = () => {
+      const expanded = item.classList.contains('open');
+      trigger.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      panel.setAttribute('aria-hidden', expanded ? 'false' : 'true');
+    };
+
+    syncState();
+
+    const observer = new MutationObserver(syncState);
+    observer.observe(item, { attributes: true, attributeFilter: ['class'] });
+
+    const toggle = () => {
+      const expanded = item.classList.contains('open');
+      item.classList.toggle('open', !expanded);
+      syncState();
+    };
+
+    const isModifierClick = (event) => event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0;
+
+    trigger.addEventListener('click', (event) => {
+      if (isModifierClick(event)) return;
+      if (event.target && event.target.closest('.hextra-sidebar-collapsible-button')) {
+        // Default theme script already toggles the state when clicking the chevron button.
+        return;
+      }
+      event.preventDefault();
+      toggle();
+    });
+
+    trigger.addEventListener('keydown', (event) => {
+      const key = event.key;
+      if (key === 'Enter' || key === ' ' || key === 'Spacebar') {
+        event.preventDefault();
+        toggle();
+      }
+    });
+  });
+};
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', setupSidebarMenuToggle, { once: true });
+} else {
+  setupSidebarMenuToggle();
+}
 </script>
 
 <div class="footer-wrapper">
