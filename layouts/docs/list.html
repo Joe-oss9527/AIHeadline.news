@@ -17,7 +17,7 @@
           
           {{/* 使用公共标题控制器 */}}
           {{ partial "title-controller.html" (dict "context" . "pageType" $pageType) }}
-          
+
           {{ .Content }}
         </div>
         {{ if eq $pageType "normal" }}

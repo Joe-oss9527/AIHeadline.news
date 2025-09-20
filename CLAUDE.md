@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Content Directory Management
 **NEVER manually create or edit files in the `content/` directory** - it is entirely auto-generated:
-- `content/_index.md` - Homepage with month cards
-- `content/YYYY-MM/_index.md` - Month index pages
+- `content/_index.md` - Homepage metadata（构建时由 `layouts/index.html` 渲染当日摘要与导航）
+- `content/YYYY-MM/_index.md` - 月归档 Markdown（同步脚本写入列表，`layouts/docs/list.html` 直接渲染）
 - `content/YYYY-MM/YYYY-MM-DD.md` - Daily summaries
 
 All content files are in `.gitignore` and must NOT be committed.
@@ -62,9 +62,9 @@ npm run dev                       # Test Worker locally
 - `wrangler.jsonc` - Cloudflare Workers configuration
 - `_worker.ts` - Worker script with GA4 stats API (using WebCrypto JWT)
 - `.github/workflows/deploy.yml` - GitHub Actions workflow
-- `.github/scripts/sync-news.sh` - Content sync script
+- `.github/scripts/sync-news.sh` - Content sync script (writes front matter + Markdown)
 - `.github/scripts/test-sync.sh` - Local development script for content sync
-- `.github/templates/` - Templates for dynamic content generation
+- `layouts/index.html` - Homepage layout that renders the latest daily briefing
 - `layouts/_partials/custom/footer.html` - Custom footer with stats display (Note: uses new Hugo v0.146.0+ template system)
 
 ### Content Flow
@@ -84,10 +84,11 @@ npm run dev                       # Test Worker locally
 
 ## Best Practices
 
-### Template Management
-- Use template files in `.github/templates/` for complex content
-- Use simple placeholders like `{{VARIABLE}}`
-- Keep logic in shell scripts, not YAML
+### Layout Management
+- Homepage 渲染由 `layouts/index.html` 负责，月度归档页面直接输出 `_index.md` 的 Markdown
+- 调整落地页结构时编辑 `layouts/index.html`；月度归档改版则更新同步脚本生成的 Markdown 内容
+- `sync-news.sh` 保持轻量：生成 front matter 与必要的 Markdown，避免手写 HTML 模板
+- Keep business logic in shell scripts or Hugo layouts, not YAML
 
 ### CSS and Styling
 - Place custom CSS in `assets/css/custom.css` (NOT in `static/css/`)

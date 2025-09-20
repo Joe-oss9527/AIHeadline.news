@@ -1,0 +1,128 @@
+{{ define "main" }}
+  {{- $hero := .Params.home.hero -}}
+  {{- $dailyPages := where .Site.RegularPages "Params.sources" "!=" nil -}}
+  {{- $sorted := $dailyPages.ByDate.Reverse -}}
+  <div class='hx-mx-auto hx-flex {{ partial "utils/page-width" . }}'>
+    {{ partial "sidebar.html" (dict "context" .) }}
+    {{ partial "toc.html" . }}
+    <article class="hx-w-full hx-break-words hx-flex hx-min-h-[calc(100vh-var(--navbar-height))] hx-min-w-0 hx-justify-center hx-pb-8 hx-pr-[calc(env(safe-area-inset-right)-1.5rem)]">
+      <main class="hx-w-full hx-min-w-0 hx-max-w-6xl hx-px-6 hx-pt-4 md:hx-px-12">
+        {{ partial "breadcrumb.html" . }}
+        <div class="content">
+          <div class="newspaper-masthead hx-border-b-4 hx-border-double hx-border-gray-900 dark:hx-border-gray-100 hx-pb-8 hx-mb-12">
+            <div class="hx-text-center">
+              <h1 class="page-title hx-text-5xl md:hx-text-6xl hx-font-bold hx-mb-4 hx-font-serif hx-text-gray-900 dark:hx-text-gray-100">
+                {{ if $hero }}{{ with $hero.title }}{{ . }}{{ else }}AI每日简报{{ end }}{{ else }}AI每日简报{{ end }}
+              </h1>
+              <div class="sub-head-en hx-text-lg md:hx-text-xl hx-text-gray-600 dark:hx-text-gray-400 hx-italic hx-mb-3">
+                GLOBAL AI MORNING BRIEF · TRUSTED INSIGHTS
+              </div>
+              {{ with $hero }}
+                {{ with .subtitle }}
+                  <p class="hx-text-base md:hx-text-lg hx-text-gray-600 dark:hx-text-gray-400 hx-max-w-3xl hx-mx-auto hx-mb-6">{{ . }}</p>
+                {{ end }}
+                {{ with .bullets }}
+                  <div class="hx-max-w-4xl hx-mx-auto">
+                    <div class="hx-grid md:hx-grid-cols-2 hx-gap-4 hx-text-sm hx-text-gray-600 dark:hx-text-gray-400">
+                      {{ range . }}
+                        <div class="hx-flex hx-items-center hx-justify-center">
+                          {{ . }}
+                        </div>
+                      {{ end }}
+                    </div>
+                  </div>
+                {{ end }}
+              {{ end }}
+              {{ if not $hero }}
+                <p class="hx-text-base md:hx-text-lg hx-text-gray-600 dark:hx-text-gray-400 hx-max-w-3xl hx-mx-auto hx-mb-6">
+                  每天 3 分钟，速览全球 AI 关键信息。自动聚合公开权威源，事件聚类 + LLM 摘要，原文一键直达；支持网站、RSS 与 Telegram 订阅。
+                </p>
+              {{ end }}
+            </div>
+          </div>
+
+          {{ if gt (len $sorted) 0 }}
+            {{- $latest := index $sorted 0 -}}
+            {{- $hasPrevious := ge (len $sorted) 2 -}}
+            {{- $previous := cond $hasPrevious (index $sorted 1) nil -}}
+            <section class="latest-daily hx-mt-12">
+              <div class="hx-flex hx-flex-col md:hx-flex-row md:hx-items-end md:hx-justify-between hx-gap-3 hx-mb-6">
+                <div>
+                  <h2 class="hx-text-2xl md:hx-text-3xl hx-font-semibold hx-text-slate-900 dark:hx-text-slate-100">
+                    今日摘要 · {{ $latest.Date.Format "2006 年 1 月 2 日" }}
+                  </h2>
+                  <p class="hx-text-sm hx-text-slate-500 dark:hx-text-slate-400 hx-mt-1">
+                    首页直接呈现最新日报摘要，历史内容可通过页内导航与左侧目录访问。
+                  </p>
+                </div>
+                <div class="hx-flex hx-flex-wrap hx-gap-3 hx-text-sm hx-text-blue-600 dark:hx-text-blue-400">
+                  <a class="hx-inline-flex hx-items-center hx-gap-1 hover:hx-underline" href="{{ $latest.RelPermalink }}">
+                    查看独立页面 →
+                  </a>
+                  {{ with $previous }}
+                    <a class="hx-inline-flex hx-items-center hx-gap-1 hover:hx-underline" href="{{ .RelPermalink }}">
+                      上一日：{{ .Date.Format "1 月 2 日" }}
+                    </a>
+                  {{ end }}
+                  {{ with $latest.Parent }}
+                    {{- $monthData := .Params.month -}}
+                    {{ if and $monthData (isset $monthData "year") (isset $monthData "month") }}
+                      {{- $monthNum := int (index $monthData "month") -}}
+                      <a class="hx-inline-flex hx-items-center hx-gap-1 hover:hx-underline" href="{{ .RelPermalink }}">
+                        查看 {{ index $monthData "year" }} 年 {{ printf "%02d" $monthNum }} 月归档
+                      </a>
+                    {{ else }}
+                      <a class="hx-inline-flex hx-items-center hx-gap-1 hover:hx-underline" href="{{ .RelPermalink }}">
+                        查看所在月归档
+                      </a>
+                    {{ end }}
+                  {{ end }}
+                </div>
+              </div>
+
+              {{ with $latest.Params.sources }}
+                <div class="hx-flex hx-flex-wrap hx-gap-2 hx-mb-4">
+                  {{ range . }}
+                    <span class="hx-rounded-full hx-bg-slate-100 dark:hx-bg-slate-800 hx-px-3 hx-py-1 hx-text-xs hx-font-medium hx-text-slate-600 dark:hx-text-slate-300">
+                      {{ . }}
+                    </span>
+                  {{ end }}
+                </div>
+              {{ end }}
+
+              <div class="latest-daily-body hx-space-y-6">
+                {{ $latest.Content }}
+              </div>
+            </section>
+
+            {{ if gt (len $sorted) 1 }}
+              <section class="hx-mt-12">
+                <h3 class="hx-text-xl hx-font-semibold hx-text-slate-900 dark:hx-text-slate-100">历史速览</h3>
+                <p class="hx-text-sm hx-text-slate-500 dark:hx-text-slate-400 hx-mt-2">
+                  也可以直接选择最近几天的日报，或通过左侧导航按月浏览全部历史内容。
+                </p>
+                <ul class="hx-mt-4 hx-space-y-2">
+                  {{- $limit := 6 -}}
+                  {{ range $idx, $page := $sorted }}
+                    {{ if and (gt $idx 0) (le $idx $limit) }}
+                      <li>
+                        <a class="hx-inline-flex hx-items-center hx-gap-3 hx-text-blue-600 dark:hx-text-blue-400 hover:hx-underline" href="{{ $page.RelPermalink }}">
+                          <span class="hx-min-w-[6rem]">{{ $page.Date.Format "2006 年 1 月 2 日" }}</span>
+                          <span class="hx-text-sm hx-text-slate-500 dark:hx-text-slate-400">{{ $page.Title }}</span>
+                        </a>
+                      </li>
+                    {{ end }}
+                  {{ end }}
+                </ul>
+              </section>
+            {{ end }}
+          {{ else }}
+            <div class="hx-mt-10 hx-text-center hx-text-slate-500 dark:hx-text-slate-400">
+              暂无可展示的日报内容，请稍后再试。
+            </div>
+          {{ end }}
+        </div>
+      </main>
+    </article>
+  </div>
+{{ end }}
