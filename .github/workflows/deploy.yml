@@ -292,17 +292,7 @@ jobs:
           echo "=== Contents of public directory ==="
           ls -la public/
 
-      # 步骤6: 设置 Node.js
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: '20'
-
-      # 步骤7: 安装依赖
-      - name: Install dependencies
-        run: npm ci
-
-      # 步骤8: 部署到 Cloudflare Worker
+      # 部署到 Cloudflare Worker（使用 wrangler-action，无需本地 Node/npm）
       - name: Deploy to Cloudflare Worker
         uses: cloudflare/wrangler-action@v3
         with:
