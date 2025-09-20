@@ -1,0 +1,19 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>AI每日简报 - 您的人工智能情报站 – 2025-09</title>
+    <link>http://localhost:1314/2025-09/</link>
+    <description>Recent content in 2025-09 on AI每日简报 - 您的人工智能情报站</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-cn</language>
+    <lastBuildDate>Fri, 19 Sep 2025 00:00:00 +0000</lastBuildDate>
+    
+	  <atom:link href="http://localhost:1314/2025-09/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+      
+        
+      
+    
+    
+  </channel>
+</rss>

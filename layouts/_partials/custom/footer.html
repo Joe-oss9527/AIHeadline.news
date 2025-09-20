@@ -1,0 +1,31 @@
+{{/* Custom Footer - Includes GA Statistics */}}
+<script type="module">
+const fmt=n=>Intl.NumberFormat('zh-CN').format(n);
+async function load(t,id){
+  try {
+    const r=await fetch(`/stats?t=${t}`);
+    if (!r.ok) throw new Error('Failed to fetch stats');
+    const d=await r.json();
+    const value = t === 'online' ? d.online : d.total;
+    document.getElementById(id).textContent=fmt(value || 0);
+  } catch(e) {
+    console.error('Stats error:', e);
+    document.getElementById(id).textContent='—';
+  }
+}
+load('total','pv'); 
+load('online','uv');
+setInterval(()=>load('online','uv'),30000);
+</script>
+
+<div class="footer-wrapper">
+  <div class="footer-container">
+    <ul class="footer-links">
+      <li>累计访问：<b id="pv">—</b> 次</li>
+      <li>在线人数：<b id="uv">—</b> 人</li>
+    </ul>
+    <div class="footer-copyright">
+      <a href="{{ "" | relLangURL }}">© {{ now.Year }} {{ site.Title }}</a>
+    </div>
+  </div>
+</div>

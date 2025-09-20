@@ -1,0 +1,23 @@
+#!/bin/bash
+# Post-deployment setup script for Cloudflare Worker secrets
+
+echo "=================================================="
+echo "Cloudflare Worker Post-Deployment Configuration"
+echo "=================================================="
+echo ""
+echo "IMPORTANT: After deployment, you need to manually set the GA4_SERVICE_KEY secret:"
+echo ""
+echo "Option 1: Via Cloudflare Dashboard"
+echo "1. Go to https://dash.cloudflare.com/"
+echo "2. Navigate to Workers & Pages → aiheadline-news"
+echo "3. Go to Settings → Variables"
+echo "4. Add an Encrypted variable:"
+echo "   - Name: GA4_SERVICE_KEY"
+echo "   - Value: Your complete Google Service Account JSON"
+echo ""
+echo "Option 2: Via Wrangler CLI"
+echo "Run: wrangler secret put GA4_SERVICE_KEY"
+echo "Then paste your Google Service Account JSON"
+echo ""
+echo "Note: GA4_PROPERTY_ID is already configured in wrangler.jsonc"
+echo "=================================================="

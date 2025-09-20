@@ -1,0 +1,171 @@
+# AI每日简报 - Hugo 站点配置 (极简版)
+baseURL = "https://aiheadline.news/"
+title = "AI每日简报 - 您的人工智能情报站"
+languageCode = "zh-cn"
+enableRobotsTXT = true
+enableGitInfo = false
+enableEmoji = true
+hasCJKLanguage = true
+
+# 构建配置
+[build]
+writeStats = true
+
+# Markdown 配置 (修正语法)
+[markup]
+[markup.goldmark]
+[markup.goldmark.renderer]
+unsafe = true
+
+[markup.goldmark.extensions]
+definitionList = true
+footnote = true
+strikethrough = true
+
+[markup.highlight]
+style = "github"
+lineNos = true
+
+# Hugo 模块配置
+[module]
+[[module.imports]]
+path = "github.com/imfing/hextra"
+
+# 站点参数
+[params]
+description = "每天 3 分钟，速览全球 AI 关键信息。自动聚合公开权威源，事件聚类 + LLM 摘要，原文一键直达；支持网站、RSS 与 Telegram 订阅。"
+rssFullContent = true
+
+# 极简主题配置
+[params.theme]
+default = "system"  # 系统主题跟随
+displayToggle = true
+
+# 编辑页面配置
+[params.editPage]
+enable = false
+
+# 站点横幅配置
+[params.banner]
+key = "announcement"
+message = "每天3分钟，速览全球AI关键信息"
+
+# 导航栏配置
+[params.navbar]
+displayTitle = false
+displayLogo = true
+
+[params.navbar.logo]
+path = "images/light-logo-350x100.webp"
+dark = "images/dark-logo-350x100.webp"
+width = 175
+height = 50
+
+# 页脚配置
+[params.footer]
+enable = true
+displayCopyright = false
+displayPoweredBy = false
+
+# 页面配置
+[params.page]
+width = "normal"
+
+# 搜索配置
+[params.search]
+enable = true
+type = "flexsearch"
+
+[params.search.flexsearch]
+index = "content"
+tokenize = "forward"
+threshold = 0.2
+
+# 侧边栏配置
+[params.sidebar]
+enable = true
+
+# 编辑链接配置
+[params.editURL]
+enable = false
+
+# 主菜单配置
+[[menu.main]]
+identifier = "home"
+name = "首页"
+pageRef = "/"
+weight = 1
+
+[[menu.main]]
+identifier = "search"
+name = "搜索"
+weight = 5
+[menu.main.params]
+type = "search"
+
+[[menu.main]]
+name = "GitHub"
+weight = 10
+url = "https://github.com/YYvanYang/AIHeadline.news"
+[menu.main.params]
+icon = "github"
+
+[[menu.main]]
+name = "Telegram"
+weight = 11
+url = "https://t.me/ai_daily_briefing"
+[menu.main.params]
+icon = "telegram"
+
+[[menu.main]]
+name = "RSS"
+weight = 12
+url = "/index.xml"
+[menu.main.params]
+icon = "rss"
+
+# 输出格式配置
+[outputs]
+home = ["HTML", "RSS", "JSON"]
+section = ["HTML", "RSS"]
+page = ["HTML"]
+
+# 服务配置
+[services]
+[services.rss]
+limit = 20
+
+# 保留现有GA4配置
+[services.googleAnalytics]
+ID = "G-0DRRQBXZWN"
+
+# 缓存配置
+[caches]
+[caches.assets]
+maxAge = "720h"
+
+[caches.getcsv]
+maxAge = "60s"
+
+[caches.getjson]
+maxAge = "60s"
+
+[caches.getresource]
+maxAge = "60s"
+
+[caches.images]
+maxAge = "720h"
+
+[caches.modules]
+maxAge = "720h"
+
+# 安全配置
+[security]
+enableInlineShortcodes = false
+
+[security.funcs]
+getenv = ["^HUGO_", "^CI$"]
+
+[security.http]
+methods = ["(?i)GET|POST"]
+urls = [".*"]

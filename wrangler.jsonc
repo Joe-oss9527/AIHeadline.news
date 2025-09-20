@@ -1,0 +1,19 @@
+{
+  "name": "aiheadline-news",
+  "main": "_worker.ts",
+  "compatibility_date": "2025-07-13",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1.0
+  },
+  "vars": {
+    "GA4_PROPERTY_ID": "496539516",
+    "GA_START_DATE": "2025-07-12"
+  }
+}
