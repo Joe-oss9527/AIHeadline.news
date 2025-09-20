@@ -1,8 +1,8 @@
 #!/bin/bash
-# AI每日简报内容同步脚本
+# AI 快讯内容同步脚本
 # 
 # 功能：从ai-news-vault仓库同步markdown文件并生成Hugo站点内容
-# 作者：AI每日简报团队
+# 作者：AI 快讯团队
 # 版本：2.4 - 简化生成逻辑，仅保留当天最新一次日报；显示原始标题（不追加更新时间）
 
 set -euo pipefail
@@ -231,10 +231,10 @@ generate_daily_page() {
     : > "$daily_file"
 
     echo "---" >> "$daily_file"
-    echo "title: "${year}年${month}月${day}日 AI 简报"" >> "$daily_file"
+    echo "title: "${year}年${month}月${day}日 AI 快讯"" >> "$daily_file"
     echo "weight: $day_weight" >> "$daily_file"
     echo "date: ${year}-${month}-${day}" >> "$daily_file"
-    echo "description: "AI每日简报 - ${year}年${month}月${day}日最新动态"" >> "$daily_file"
+    echo "description: "AI 快讯 - ${year}年${month}月${day}日最新动态"" >> "$daily_file"
 
     # 单一来源，无需排序
 
@@ -348,8 +348,8 @@ generate_home_page() {
         log "WARN: No daily report files found, creating placeholder home page"
         cat > "${CONTENT_DIR}/_index.md" << NO_DATA_EOF
 ---
-title: AI每日简报 - 您的人工智能情报站
-linkTitle: AI每日简报
+title: AI 快讯 - 您的人工智能情报站
+linkTitle: AI 快讯
 breadcrumbs: false
 description: "每天 3 分钟，速览全球 AI 关键信息。自动聚合公开权威源，事件聚类 + LLM 摘要，原文一键直达；支持网站、RSS 与 Telegram 订阅。"
 cascade:
@@ -358,7 +358,7 @@ cascade:
 
 ## 暂无日报数据
 
-AI每日简报正在筹备中，敬请期待...
+AI 快讯正在筹备中，敬请期待...
 NO_DATA_EOF
         return 0
     fi
@@ -373,8 +373,8 @@ NO_DATA_EOF
 
     {
         echo "---"
-        echo "title: AI每日简报 - 您的人工智能情报站"
-        echo "linkTitle: AI每日简报"
+        echo "title: AI 快讯 - 您的人工智能情报站"
+        echo "linkTitle: AI 快讯"
         echo "breadcrumbs: false"
         echo "description: \"每天 3 分钟，速览全球 AI 关键信息。自动聚合公开权威源，事件聚类 + LLM 摘要，原文一键直达；支持网站、RSS 与 Telegram 订阅。\""
         echo "cascade:"
