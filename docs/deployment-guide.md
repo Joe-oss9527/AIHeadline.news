@@ -109,9 +109,12 @@ graph TB
 ├── archetypes/
 │   └── default.md                       # Hugo 内容模板
 ├── layouts/
+│   ├── index.html                       # 首页布局：自动读取最新日报
 │   ├── _partials/
 │   │   ├── custom/
 │   │   │   └── footer.html              # 包含统计显示的自定义页脚
+│   │   ├── daily-header.html            # 日报标题渲染
+│   │   ├── month-index.html             # 月度归档列表渲染
 │   │   └── title-controller.html        # 标题控制器
 │   ├── docs/
 │   │   ├── list.html                    # 文档列表页面模板
@@ -144,17 +147,18 @@ graph TB
 │   ├── workflows/
 │   │   └── deploy.yml                   # CI/CD 工作流
 │   ├── scripts/
-│   │   ├── sync-news.sh                 # 内容同步脚本
+│   │   ├── sync-news.sh                 # 内容同步脚本（写入 front matter 元数据）
 │   │   ├── test-sync.sh                 # 测试同步脚本
 │   │   ├── dev.sh                       # 开发脚本
 │   │   └── post-deploy-setup.sh         # 部署后设置脚本
-│   ├── templates/
-│   │   ├── home-index.md                # 首页模板
-│   │   └── month-index.md               # 月份页面模板
 │   └── dependabot.yml                   # Dependabot 配置
 ├── content/                             # Markdown 内容（自动生成，请勿手动编辑）
 └── public/                              # Hugo 构建输出（自动生成）
 ```
+
+> 首页与月度归档页面不再依赖 `.github/templates/` 预渲染 HTML，`sync-news.sh` 仅写入 `_index.md` 元数据。
+> `layouts/index.html` 会在构建时选出最新的日报正文直接填充首页，并展示最近几日的快速导航；
+> `layouts/_partials/month-index.html` 则根据月份目录下的实际内容生成归档列表。
 
 ### 2.1 `wrangler.jsonc`
 
@@ -429,7 +433,7 @@ wrangler secret put GA4_SERVICE_KEY
    ```
    Actions 完成后检查：
    - https://aiheadline.news 返回 Hugo 站点
-   - 首页显示 PV / 在线人数
+   - 首页展示当日摘要，并同步显示 PV / 在线人数统计
    - GA4 Realtime 面板可看到活跃用户
 
 ---

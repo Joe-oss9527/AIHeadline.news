@@ -1,0 +1,49 @@
+{{- $monthInfo := .Params.month -}}
+{{- $year := cond (and $monthInfo (isset $monthInfo "year")) $monthInfo.year (.Title | split "-" | index 0) -}}
+{{- $monthRaw := cond (and $monthInfo (isset $monthInfo "month")) $monthInfo.month ((.Title | split "-" | index 1)) -}}
+{{- $monthInt := int $monthRaw -}}
+{{- $month := printf "%02d" $monthInt -}}
+{{- $dayCount := cond (and $monthInfo (isset $monthInfo "dayCount")) $monthInfo.dayCount (len .RegularPages) -}}
+{{- $dailyPages := .RegularPages.ByDate.Reverse -}}
+
+<div class="newspaper-month-header border-b-4 border-double border-gray-900 dark:border-gray-100 pb-6 mb-8">
+  <div class="text-center">
+    <h1 class="page-title text-4xl md:text-5xl font-bold font-serif mb-2 text-gray-900 dark:text-gray-100">
+      {{ $year }}年{{ $month }}月
+    </h1>
+    <div class="sub-head-en text-lg md:text-xl text-gray-600 dark:text-gray-400 italic mb-4">
+      AI DAILY BRIEFING ARCHIVE
+    </div>
+    <div class="lede-cn text-gray-600 dark:text-gray-400">
+      本月收录 {{ $dayCount }} 份 AI 日报，涵盖技术突破、产业动态、投融资等关键资讯
+    </div>
+  </div>
+</div>
+
+<div class="newspaper-daily-list hx-mt-12">
+  <h2 class="section-title text-2xl font-bold mb-6 font-serif flex items-center">
+    <span class="mr-3">📰</span>
+    本月日报
+    <span class="en ml-auto text-sm font-normal text-gray-500">
+      Daily AI Briefings
+    </span>
+  </h2>
+
+  {{ if gt (len $dailyPages) 0 }}
+    <div class="newspaper-articles-grid">
+      {{ range $dailyPages }}
+        {{- $displayDate := .Date.Format "1 月 2 日" -}}
+        <div>
+          <a href="{{ .RelPermalink }}">{{ $displayDate }} 日报</a>
+          {{ with .Params.sources }}
+            <p class="hx-mt-1 hx-text-sm hx-text-slate-500 dark:hx-text-slate-400">聚合来源：{{ delimit . " / " }}</p>
+          {{ end }}
+        </div>
+      {{ end }}
+    </div>
+  {{ else }}
+    <div class="hx-text-center hx-text-slate-500 dark:hx-text-slate-400">
+      本月暂无可展示的日报内容。
+    </div>
+  {{ end }}
+</div>

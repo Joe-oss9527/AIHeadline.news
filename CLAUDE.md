@@ -62,9 +62,10 @@ npm run dev                       # Test Worker locally
 - `wrangler.jsonc` - Cloudflare Workers configuration
 - `_worker.ts` - Worker script with GA4 stats API (using WebCrypto JWT)
 - `.github/workflows/deploy.yml` - GitHub Actions workflow
-- `.github/scripts/sync-news.sh` - Content sync script
+- `.github/scripts/sync-news.sh` - Content sync script (writes front matter metadata)
 - `.github/scripts/test-sync.sh` - Local development script for content sync
-- `.github/templates/` - Templates for dynamic content generation
+- `layouts/index.html` - Homepage layout that renders the latest daily briefing
+- `layouts/_partials/month-index.html` - Monthly archive list partial
 - `layouts/_partials/custom/footer.html` - Custom footer with stats display (Note: uses new Hugo v0.146.0+ template system)
 
 ### Content Flow
@@ -84,10 +85,11 @@ npm run dev                       # Test Worker locally
 
 ## Best Practices
 
-### Template Management
-- Use template files in `.github/templates/` for complex content
-- Use simple placeholders like `{{VARIABLE}}`
-- Keep logic in shell scripts, not YAML
+### Layout Management
+- Homepage + monthly archive pages are rendered by `layouts/index.html` and `layouts/_partials/month-index.html`
+- Update these layouts when adjusting landing page structure or archive navigation
+- `sync-news.sh` should remain lightweight—only write metadata/front matter, leave rendering to Hugo layouts
+- Keep business logic in shell scripts or Hugo layouts, not YAML
 
 ### CSS and Styling
 - Place custom CSS in `assets/css/custom.css` (NOT in `static/css/`)

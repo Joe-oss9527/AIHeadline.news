@@ -6,9 +6,22 @@
       <main class="hx-w-full hx-min-w-0 hx-max-w-6xl hx-px-6 hx-pt-4 md:hx-px-12">
         {{ partial "breadcrumb.html" . }}
         <div class="content">
-          {{ partial "title-controller.html" (dict "context" . "pageType" "normal") }}
+          {{/* 检查页面类型并调用标题控制器 */}}
+          {{ $pageType := "normal" }}
+          {{ if .File }}
+            {{ $path := .File.Path }}
+            {{ if findRE `\d{4}-\d{2}/_index\.md$` $path }}
+              {{ $pageType = "monthIndex" }}
+            {{ end }}
+          {{ end }}
 
-          {{ .Content }}
+          {{ partial "title-controller.html" (dict "context" . "pageType" $pageType) }}
+
+          {{ if eq $pageType "monthIndex" }}
+            {{ partial "month-index.html" . }}
+          {{ else }}
+            {{ .Content }}
+          {{ end }}
         </div>
         {{ partial "components/last-updated.html" . }}
         {{ partial "components/pager.html" . }}

@@ -3,7 +3,7 @@
 # 
 # 功能：从ai-news-vault仓库同步markdown文件并生成Hugo站点内容
 # 作者：AI每日简报团队
-# 版本：2.5 - 移除模板依赖，仅生成日报 Markdown 并记录最新日报元数据
+# 版本：2.6 - 生成 Hugo 布局依赖的首页/归档元数据，并记录最新日报信息
 
 set -euo pipefail
 
@@ -279,6 +279,68 @@ delete_daily_page() {
     fi
 }
 
+### 生成页面元数据（首页 + 月份索引）
+
+# 生成月份索引页面
+generate_month_index() {
+    local dest_dir="$1"
+    local year="$2"
+    local month="$3"
+    local -a dates=("${@:4}")
+
+    local weight
+    weight=$(calculate_weight "$year" "$month")
+
+    local day_count="${#dates[@]}"
+    local month_index_file="${dest_dir}/_index.md"
+
+    cat > "$month_index_file" <<EOF
+---
+title: "${year}-${month}"
+weight: $weight
+breadcrumbs: false
+sidebar:
+  open: true
+description: "${year}年${month}月 AI 每日简报归档"
+month:
+  year: "$year"
+  month: "$month"
+  dayCount: $day_count
+---
+EOF
+
+    log "Generated month index metadata: $month_index_file"
+}
+
+# 生成首页
+generate_home_page() {
+    log "Refreshing home page metadata..."
+
+    local home_file="${CONTENT_DIR}/_index.md"
+
+    cat > "$home_file" <<'EOF'
+---
+title: AI每日简报 - 您的人工智能情报站
+linkTitle: AI每日简报
+breadcrumbs: false
+description: "每天 3 分钟，速览全球 AI 关键信息。自动聚合公开权威源，事件聚类 + LLM 摘要，原文一键直达；支持网站、RSS 与 Telegram 订阅。"
+cascade:
+  type: docs
+home:
+  hero:
+    title: "AI每日简报"
+    subtitle: "每天 3 分钟，速览全球 AI 关键信息。自动聚合公开权威源，事件聚类 + LLM 摘要，原文一键直达。"
+    bullets:
+      - "多源聚合：Hacker News / Twitter / Reddit 等公开渠道"
+      - "智能处理：嵌入 → 去重 → 话题聚类（HDBSCAN）→ 重排序（BGE-Reranker）→ 摘要"
+      - "原文可追溯：保留原始链接，便于快速核验与延伸阅读"
+      - "多渠道分发：网站阅读、RSS 订阅、Telegram 推送"
+---
+EOF
+
+    log "Updated home page metadata: $home_file"
+}
+
 # 根据现有内容更新最新日报元数据
 update_latest_metadata() {
     local latest=""
@@ -356,7 +418,10 @@ process_month() {
     for date_str in "${dates[@]}"; do
         generate_daily_page "$month_dir" "$dest_dir" "$date_str" || log "WARN: Failed to generate page for $date_str"
     done
-    
+
+    # 生成月份索引元数据
+    generate_month_index "$dest_dir" "$year" "$month" "${dates[@]}"
+
     log "Completed month: $year-$month (${#dates[@]} days)"
 }
 
@@ -369,9 +434,10 @@ sync_content_full() {
     
     # 创建内容目录
     mkdir -p "$CONTENT_DIR"
-    
+
     # 清理旧的生成内容（保留手动文件）
     find "$CONTENT_DIR" -name "20*" -type d -exec rm -rf {} + 2>/dev/null || true
+    rm -f "${CONTENT_DIR}/_index.md"
     # 遍历年份目录
     local total_months=0
     for year_dir in "$SOURCE_DIR"/*/; do
@@ -402,7 +468,10 @@ sync_content_full() {
     done
     
     log "Processed $total_months months"
-    
+
+    # 生成首页元数据
+    generate_home_page
+
     # 显示同步结果
     local total_files
     total_files=$(find "$CONTENT_DIR" -name "*.md" -type f 2>/dev/null | wc -l)
@@ -435,6 +504,7 @@ sync_content_incremental() {
 
     if [[ ${#dates[@]} -eq 0 ]]; then
         log "No valid changed dates provided; nothing to update"
+        generate_home_page
         update_latest_metadata
         return 0
     fi
@@ -474,17 +544,33 @@ sync_content_incremental() {
         affected_months=( $_tmp_months )
     fi
 
-    # 清理已空的月份目录
+    # 更新或清理受影响月份的索引文件
     for ym in "${affected_months[@]}"; do
+        local y="${ym%-*}"
+        local m="${ym#*-}"
+        local month_src_dir="${SOURCE_DIR}/${y}/${m}"
         local dest_dir="${CONTENT_DIR}/${ym}"
-        if [[ -d "$dest_dir" ]]; then
-            local has_daily
-            has_daily="$(find "$dest_dir" -maxdepth 1 -type f -name '*.md' -print -quit)"
-            if [[ -z "$has_daily" ]]; then
-                rmdir "$dest_dir" 2>/dev/null && log "Removed empty month directory: $dest_dir"
+
+        local month_dates=()
+        if [[ -d "$month_src_dir" ]]; then
+            while IFS= read -r date_str; do
+                [[ -n "$date_str" ]] && month_dates+=("$date_str")
+            done < <(collect_month_dates "$month_src_dir")
+        fi
+
+        if [[ ${#month_dates[@]} -eq 0 ]]; then
+            if [[ -d "$dest_dir" ]]; then
+                rm -rf "$dest_dir"
+                log "Removed empty month directory: $dest_dir"
             fi
+        else
+            mkdir -p "$dest_dir"
+            generate_month_index "$dest_dir" "$y" "$m" "${month_dates[@]}"
         fi
     done
+
+    # 刷新首页与最新元数据
+    generate_home_page
 
     # 汇总输出
     local total_files
@@ -499,7 +585,7 @@ sync_content_incremental() {
 # =============================================================================
 
 main() {
-    log "AI News Content Sync v2.5"
+    log "AI News Content Sync v2.6"
     log "Project root: $PROJECT_ROOT"
     log "Source directory: $SOURCE_DIR"
     log "Content directory: $CONTENT_DIR"
