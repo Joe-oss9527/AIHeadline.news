@@ -3,7 +3,7 @@
 # 
 # 功能：从ai-news-vault仓库同步markdown文件并生成Hugo站点内容
 # 作者：AI每日简报团队
-# 版本：2.4 - 简化生成逻辑，仅保留当天最新一次日报；显示原始标题（不追加更新时间）
+# 版本：2.5 - 移除模板依赖，仅生成日报 Markdown 并记录最新日报元数据
 
 set -euo pipefail
 
@@ -73,7 +73,7 @@ readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 readonly SOURCE_DIR="${PROJECT_ROOT}/source-news"
 readonly CONTENT_DIR="${PROJECT_ROOT}/content"
-readonly TEMPLATE_DIR="${PROJECT_ROOT}/.github/templates"
+readonly DATA_DIR="${PROJECT_ROOT}/data"
 
 # =============================================================================
 # 工具函数
@@ -236,6 +236,9 @@ generate_daily_page() {
     echo "weight: $day_weight" >> "$daily_file"
     echo "date: ${year}-${month}-${day}" >> "$daily_file"
     echo "description: "AI每日简报 - ${year}年${month}月${day}日最新动态"" >> "$daily_file"
+    echo "type: docs" >> "$daily_file"
+    echo "sidebar:" >> "$daily_file"
+    echo "  open: true" >> "$daily_file"
 
     # 单一来源，无需排序
 
@@ -276,103 +279,51 @@ delete_daily_page() {
     fi
 }
 
-# 生成月份索引页面
-generate_month_index() {
-    local dest_dir="$1"
-    local year="$2"
-    local month="$3"
-    local dates=("${@:4}")
-    
-    local weight
-    weight=$(calculate_weight "$year" "$month")
-    
-    local template_file="${TEMPLATE_DIR}/month-index.md"
-    [[ -f "$template_file" ]] || die "Template not found: $template_file"
-    
-    local temp_file="${dest_dir}/.month_index_tmp"
-    local content_file="${dest_dir}/.content_tmp"
-    
-    # 生成内容列表
-    : > "$content_file"
-    for date_str in "${dates[@]}"; do
-        eval "$(parse_date "$date_str")"
-        cat >> "$content_file" << CONTENT_EOF
-<div class="daily-article">
-  <a href="${year}-${month}-${day}">${month}-${day} 日报</a>
-</div>
-CONTENT_EOF
-    done
-    
-    # 替换模板占位符
-    sed "s/{{YEAR}}/$year/g; s/{{MONTH}}/$month/g; s/{{WEIGHT}}/$weight/g" \
-        "$template_file" > "$temp_file"
-    
-    # 插入内容
-    sed "/{{CONTENT}}/r $content_file" "$temp_file" | \
-        sed '/{{CONTENT}}/d' > "${dest_dir}/_index.md"
-    
-    # 清理临时文件
-    rm -f "$temp_file" "$content_file"
-    
-    log "Generated month index: ${dest_dir}/_index.md"
-}
+# 根据现有内容更新最新日报元数据
+update_latest_metadata() {
+    local latest=""
 
-# 生成首页
-generate_home_page() {
-    log "Starting home page generation..."
-    
-    local template_file="${TEMPLATE_DIR}/home-index.md"
-    [[ -f "$template_file" ]] || die "Home template not found: $template_file"
-    
-    local cards_file="${CONTENT_DIR}/.cards_tmp"
-    
-    # 收集月份卡片
-    : > "$cards_file"
-    
-    local month_count=0
-    for month_dir in "${CONTENT_DIR}"/20*/; do
-        [[ -d "$month_dir" ]] || continue
-        [[ -f "${month_dir}/_index.md" ]] || continue
-        
-        local dirname
-        dirname="$(basename "$month_dir")"
-        local year="${dirname:0:4}"
-        local month="${dirname:5:2}"
-        
-        # 统计文章数量
-        local article_count
-        article_count=$(find "$month_dir" -name "*.md" -not -name "_index.md" -type f | wc -l)
-        
-        cat >> "$cards_file" << CARD_EOF
-<div class="month-card">
-  <h3><a href="${dirname}">${year}年${month}月</a></h3>
-  <p>收录 ${article_count} 篇AI日报，涵盖技术突破、产业动态、投资并购等关键资讯</p>
-</div>
-CARD_EOF
-        # 修复：使用安全的递增方式
-        month_count=$((month_count + 1))
-    done
-    
-    # 如果没有数据，显示提示
-    if [[ $month_count -eq 0 ]]; then
-        cat > "$cards_file" << NO_DATA_EOF
-<div class="no-data-card">
-  <h3>暂无日报数据</h3>
-  <p>AI每日简报正在筹备中，敬请期待...</p>
-</div>
-NO_DATA_EOF
+    if [[ -d "$CONTENT_DIR" ]]; then
+        while IFS= read -r -d '' file; do
+            local basename
+            basename="${file##*/}"
+            local stem
+            stem="${basename%.md}"
+            if [[ "$stem" =~ ^([0-9]{4})-([0-9]{2})-([0-9]{2})$ ]]; then
+                local candidate="${BASH_REMATCH[1]}${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
+                if [[ -z "$latest" || "$candidate" > "$latest" ]]; then
+                    latest="$candidate"
+                fi
+            fi
+        done < <(find "$CONTENT_DIR" -type f -name '*.md' -print0 2>/dev/null)
     fi
-    
-    # 生成首页
-    if sed "/{{MONTH_CARDS}}/r $cards_file" "$template_file" | \
-        sed '/{{MONTH_CARDS}}/d' > "${CONTENT_DIR}/_index.md"; then
-        log "Generated home page with $month_count months"
+
+    mkdir -p "$DATA_DIR"
+    local latest_file="${DATA_DIR}/latest.json"
+
+    if [[ -n "$latest" ]]; then
+        local year="${latest:0:4}"
+        local month="${latest:4:2}"
+        local day="${latest:6:2}"
+        local formatted="${year}-${month}-${day}"
+        local section="${year}-${month}"
+        local page_path="/${section}/${formatted}/"
+        cat > "$latest_file" <<JSON
+{
+  "date": "$formatted",
+  "page": "$page_path"
+}
+JSON
+        log "Recorded latest daily date: $formatted"
     else
-        die "Failed to generate home page"
+        cat > "$latest_file" <<JSON
+{
+  "date": null,
+  "page": null
+}
+JSON
+        log "Recorded latest daily date: none"
     fi
-    
-    # 清理临时文件
-    rm -f "$cards_file"
 }
 
 # =============================================================================
@@ -406,9 +357,6 @@ process_month() {
         generate_daily_page "$month_dir" "$dest_dir" "$date_str" || log "WARN: Failed to generate page for $date_str"
     done
     
-    # 生成月份索引
-    generate_month_index "$dest_dir" "$year" "$month" "${dates[@]}"
-    
     log "Completed month: $year-$month (${#dates[@]} days)"
 }
 
@@ -424,8 +372,6 @@ sync_content_full() {
     
     # 清理旧的生成内容（保留手动文件）
     find "$CONTENT_DIR" -name "20*" -type d -exec rm -rf {} + 2>/dev/null || true
-    rm -f "${CONTENT_DIR}/_index.md"
-    
     # 遍历年份目录
     local total_months=0
     for year_dir in "$SOURCE_DIR"/*/; do
@@ -457,14 +403,13 @@ sync_content_full() {
     
     log "Processed $total_months months"
     
-    # 生成首页
-    generate_home_page
-    
     # 显示同步结果
     local total_files
     total_files=$(find "$CONTENT_DIR" -name "*.md" -type f 2>/dev/null | wc -l)
     log "Synchronization complete: $total_files files generated"
-    
+
+    update_latest_metadata
+
     # 列出生成的文件（限制输出）
     if [[ $total_files -gt 0 ]]; then
         log "Generated files:"
@@ -490,8 +435,7 @@ sync_content_incremental() {
 
     if [[ ${#dates[@]} -eq 0 ]]; then
         log "No valid changed dates provided; nothing to update"
-        # 兜底：仍然刷新首页，保持统计与导航更新
-        generate_home_page
+        update_latest_metadata
         return 0
     fi
 
@@ -524,47 +468,29 @@ sync_content_incremental() {
 
     # 去重月份
     if [[ ${#affected_months[@]} -gt 0 ]]; then
-        # 使用临时文件进行去重，兼容旧版 bash
         local _tmp_months
         _tmp_months=$(printf '%s\n' "${affected_months[@]}" | sort -u)
-        # 重新装入数组
         # shellcheck disable=SC2206
         affected_months=( $_tmp_months )
     fi
 
-    # 更新受影响月份的索引
+    # 清理已空的月份目录
     for ym in "${affected_months[@]}"; do
-        local y="${ym%-*}"
-        local m="${ym#*-}"
-        local month_src_dir="${SOURCE_DIR}/${y}/${m}"
         local dest_dir="${CONTENT_DIR}/${ym}"
-
-        # 收集该月所有有效日期（从源目录重新计算）
-        local month_dates=()
-        if [[ -d "$month_src_dir" ]]; then
-            while IFS= read -r date_str; do
-                [[ -n "$date_str" ]] && month_dates+=("$date_str")
-            done < <(collect_month_dates "$month_src_dir")
-        fi
-
-        if [[ ${#month_dates[@]} -eq 0 ]]; then
-            # 若该月已无任何源数据，清理目标目录
-            if [[ -d "$dest_dir" ]]; then
-                rm -rf "$dest_dir"
-                log "Removed empty month directory: $dest_dir"
+        if [[ -d "$dest_dir" ]]; then
+            local has_daily
+            has_daily="$(find "$dest_dir" -maxdepth 1 -type f -name '*.md' -print -quit)"
+            if [[ -z "$has_daily" ]]; then
+                rmdir "$dest_dir" 2>/dev/null && log "Removed empty month directory: $dest_dir"
             fi
-        else
-            mkdir -p "$dest_dir"
-            generate_month_index "$dest_dir" "$y" "$m" "${month_dates[@]}"
         fi
     done
-
-    # 刷新首页
-    generate_home_page
 
     # 汇总输出
     local total_files
     total_files=$(find "$CONTENT_DIR" -name "*.md" -type f 2>/dev/null | wc -l)
+    update_latest_metadata
+
     log "Incremental synchronization complete: $total_files files now present"
 }
 
@@ -573,7 +499,7 @@ sync_content_incremental() {
 # =============================================================================
 
 main() {
-    log "AI News Content Sync v2.4"
+    log "AI News Content Sync v2.5"
     log "Project root: $PROJECT_ROOT"
     log "Source directory: $SOURCE_DIR"
     log "Content directory: $CONTENT_DIR"
