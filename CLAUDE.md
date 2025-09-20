@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Content Directory Management
 **NEVER manually create or edit files in the `content/` directory** - it is entirely auto-generated:
-- `content/_index.md` - Homepage with month cards
-- `content/YYYY-MM/_index.md` - Month index pages
+- `content/_index.md` - Homepage metadata（构建时由 `layouts/index.html` 渲染当日摘要与导航）
+- `content/YYYY-MM/_index.md` - 月归档元数据（构建时由 `layouts/_partials/month-index.html` 渲染列表）
 - `content/YYYY-MM/YYYY-MM-DD.md` - Daily summaries
 
 All content files are in `.gitignore` and must NOT be committed.
@@ -62,9 +62,10 @@ npm run dev                       # Test Worker locally
 - `wrangler.jsonc` - Cloudflare Workers configuration
 - `_worker.ts` - Worker script with GA4 stats API (using WebCrypto JWT)
 - `.github/workflows/deploy.yml` - GitHub Actions workflow
-- `.github/scripts/sync-news.sh` - Content sync script
+- `.github/scripts/sync-news.sh` - Content sync script (writes front matter metadata)
 - `.github/scripts/test-sync.sh` - Local development script for content sync
-- `.github/templates/` - Templates for dynamic content generation
+- `layouts/index.html` - Homepage layout that renders the latest daily briefing
+- `layouts/_partials/month-index.html` - Monthly archive list partial
 - `layouts/_partials/custom/footer.html` - Custom footer with stats display (Note: uses new Hugo v0.146.0+ template system)
 
 ### Content Flow
@@ -84,10 +85,11 @@ npm run dev                       # Test Worker locally
 
 ## Best Practices
 
-### Template Management
-- Use template files in `.github/templates/` for complex content
-- Use simple placeholders like `{{VARIABLE}}`
-- Keep logic in shell scripts, not YAML
+### Layout Management
+- Homepage + monthly archive pages are rendered by `layouts/index.html` and `layouts/_partials/month-index.html`
+- Update these layouts when adjusting landing page structure or archive navigation
+- `sync-news.sh` should remain lightweight—only write metadata/front matter, leave rendering to Hugo layouts
+- Keep business logic in shell scripts or Hugo layouts, not YAML
 
 ### CSS and Styling
 - Place custom CSS in `assets/css/custom.css` (NOT in `static/css/`)
