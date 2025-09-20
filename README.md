@@ -12,7 +12,7 @@
 
 | 类别 | 描述 |
 |------|------|
-| **内容自动化** | 每日同步仓库 [`ai-briefing-archive`](https://github.com/Joe-oss9527/ai-briefing-archive)，智能分类、按月归档 |
+| **内容自动化** | 每日同步仓库 [`ai-briefing-archive`](https://github.com/Joe-oss9527/ai-briefing-archive)，首页自动呈现当日摘要，历史内容通过站内翻页与左侧导航按日/月访问 |
 | **Hextra 主题** | 暗色/浅色、FlexSearch、站内链接卡片、RSS、PWA |
 | **双环境发布** | Cloudflare Worker (Assets) 生产 • GitHub Pages 备份 |
 | **实时统计** | GA4 Data API (JWT 自签名) 缓存到边缘：累计访问量 + 在线人数 |
