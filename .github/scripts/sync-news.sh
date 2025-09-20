@@ -292,6 +292,7 @@ generate_month_index() {
         echo "title: \"${year}-${month}\""
         echo "weight: $weight"
         echo "breadcrumbs: false"
+        echo "hideTitle: true"
         echo "sidebar:"
         echo "  open: true"
         echo "---"

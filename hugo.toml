@@ -126,9 +126,23 @@ icon = "rss"
 
 # 输出格式配置
 [outputs]
-home = ["HTML", "RSS", "JSON"]
-section = ["HTML", "RSS"]
-page = ["HTML"]
+home = ["HTML", "RSS", "markdown"]
+section = ["HTML", "RSS", "markdown"]
+page = ["HTML", "markdown"]
+
+# 自定义媒体类型
+[mediaTypes]
+[mediaTypes.'text/markdown']
+suffixes = ['md']
+
+# 自定义输出格式
+[outputFormats]
+[outputFormats.markdown]
+mediaType = 'text/markdown'
+isPlainText = true
+isHTML = false
+noUgly = true
+baseName = 'index'
 
 # 服务配置
 [services]
