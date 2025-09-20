@@ -297,7 +297,6 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '20'
-          cache: 'npm'
 
       # 步骤7: 安装依赖
       - name: Install dependencies
