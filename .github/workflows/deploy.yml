@@ -29,6 +29,10 @@ jobs:
   # 检查并更新子模块
   check-submodule:
     runs-on: ubuntu-24.04
+    outputs:
+      updated: ${{ steps.update.outputs.updated }}
+      previous_sha: ${{ steps.update.outputs.previous_sha }}
+      new_sha: ${{ steps.update.outputs.new_sha }}
     steps:
       - name: Checkout website repo
         uses: actions/checkout@v4
@@ -37,7 +41,11 @@ jobs:
           fetch-depth: 0
 
       - name: Check and update submodule
+        id: update
         run: |
+          set -euo pipefail
+          PREVIOUS_SHA="$(git rev-parse HEAD)"
+          UPDATED=false
           # Initialize and update to latest remote commit
           git submodule update --init --remote source-news
           # Check if submodule was updated and commit if necessary
@@ -47,7 +55,14 @@ jobs:
             git add source-news
             git commit -m "chore(submodule): auto-update source-news to latest"
             git push
+            UPDATED=true
           fi
+          NEW_SHA="$(git rev-parse HEAD)"
+          {
+            echo "updated=${UPDATED}"
+            echo "previous_sha=${PREVIOUS_SHA}"
+            echo "new_sha=${NEW_SHA}"
+          } >> "$GITHUB_OUTPUT"
 
   # 构建任务
   build:
@@ -55,6 +70,9 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       HUGO_VERSION: 0.148.1
+      WORKFLOW_HEAD_SHA: ${{ needs.check-submodule.outputs.new_sha }}
+      WORKFLOW_EVENT_BEFORE: ${{ needs.check-submodule.outputs.previous_sha }}
+      SUBMODULE_UPDATED: ${{ needs.check-submodule.outputs.updated }}
     steps:
       # 步骤1: 安装Hugo CLI
       - name: Install Hugo CLI
@@ -68,6 +86,12 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
+
+      - name: Adopt latest commit from submodule update
+        if: env.SUBMODULE_UPDATED == 'true'
+        run: |
+          git fetch origin main
+          git checkout "${WORKFLOW_HEAD_SHA}"
 
       - name: Update submodules
         run: |
@@ -108,7 +132,12 @@ jobs:
           fi
           echo "CHANGED_DATES=${CHANGED_DATES}" | tee -a "$GITHUB_ENV"
           # 检测站点代码/模板是否变更（需要立即生效）
-          CODE_CHANGED_FILES="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" -- .github/scripts .github/templates layouts hugo.toml assets static archetypes || true)"
+          EVENT_BEFORE="${WORKFLOW_EVENT_BEFORE:-${{ github.event.before }}}"
+          EVENT_SHA="${WORKFLOW_HEAD_SHA:-${{ github.sha }}}"
+          CODE_CHANGED_FILES=""
+          if [[ -n "${EVENT_BEFORE}" ]]; then
+            CODE_CHANGED_FILES="$(git diff --name-only "${EVENT_BEFORE}" "${EVENT_SHA}" -- .github/scripts .github/templates layouts hugo.toml assets static archetypes || true)"
+          fi
           if [[ -n "$CODE_CHANGED_FILES" ]]; then
             CODE_CHANGED="true"
             echo "CODE_CHANGED=true" | tee -a "$GITHUB_ENV"
@@ -191,6 +220,9 @@ jobs:
     if: github.ref == 'refs/heads/main'
     env:
       HUGO_VERSION: 0.148.1
+      WORKFLOW_HEAD_SHA: ${{ needs.check-submodule.outputs.new_sha }}
+      WORKFLOW_EVENT_BEFORE: ${{ needs.check-submodule.outputs.previous_sha }}
+      SUBMODULE_UPDATED: ${{ needs.check-submodule.outputs.updated }}
     steps:
       # 步骤1: 检出代码
       - name: Checkout repository
@@ -198,6 +230,12 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
+
+      - name: Adopt latest commit from submodule update
+        if: env.SUBMODULE_UPDATED == 'true'
+        run: |
+          git fetch origin main
+          git checkout "${WORKFLOW_HEAD_SHA}"
 
       - name: Update submodules
         run: |
@@ -234,7 +272,12 @@ jobs:
             fi
           fi
           echo "CHANGED_DATES=${CHANGED_DATES}" | tee -a "$GITHUB_ENV"
-          CODE_CHANGED_FILES="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" -- .github/scripts .github/templates layouts hugo.toml assets static archetypes || true)"
+          EVENT_BEFORE="${WORKFLOW_EVENT_BEFORE:-${{ github.event.before }}}"
+          EVENT_SHA="${WORKFLOW_HEAD_SHA:-${{ github.sha }}}"
+          CODE_CHANGED_FILES=""
+          if [[ -n "${EVENT_BEFORE}" ]]; then
+            CODE_CHANGED_FILES="$(git diff --name-only "${EVENT_BEFORE}" "${EVENT_SHA}" -- .github/scripts .github/templates layouts hugo.toml assets static archetypes || true)"
+          fi
           if [[ -n "$CODE_CHANGED_FILES" ]]; then
             CODE_CHANGED="true"
             echo "CODE_CHANGED=true" | tee -a "$GITHUB_ENV"
