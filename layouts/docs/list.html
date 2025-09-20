@@ -17,8 +17,12 @@
           
           {{/* 使用公共标题控制器 */}}
           {{ partial "title-controller.html" (dict "context" . "pageType" $pageType) }}
-          
-          {{ .Content }}
+
+          {{ if eq $pageType "monthIndex" }}
+            {{ partial "month-index.html" . }}
+          {{ else }}
+            {{ .Content }}
+          {{ end }}
         </div>
         {{ if eq $pageType "normal" }}
           {{ partial "components/last-updated.html" . }}

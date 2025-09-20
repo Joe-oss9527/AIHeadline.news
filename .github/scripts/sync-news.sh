@@ -73,7 +73,6 @@ readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 readonly SOURCE_DIR="${PROJECT_ROOT}/source-news"
 readonly CONTENT_DIR="${PROJECT_ROOT}/content"
-readonly TEMPLATE_DIR="${PROJECT_ROOT}/.github/templates"
 
 # =============================================================================
 # 工具函数
@@ -281,98 +280,59 @@ generate_month_index() {
     local dest_dir="$1"
     local year="$2"
     local month="$3"
-    local dates=("${@:4}")
-    
+    local -a dates=("${@:4}")
+
     local weight
     weight=$(calculate_weight "$year" "$month")
-    
-    local template_file="${TEMPLATE_DIR}/month-index.md"
-    [[ -f "$template_file" ]] || die "Template not found: $template_file"
-    
-    local temp_file="${dest_dir}/.month_index_tmp"
-    local content_file="${dest_dir}/.content_tmp"
-    
-    # 生成内容列表
-    : > "$content_file"
-    for date_str in "${dates[@]}"; do
-        eval "$(parse_date "$date_str")"
-        cat >> "$content_file" << CONTENT_EOF
-<div class="daily-article">
-  <a href="${year}-${month}-${day}">${month}-${day} 日报</a>
-</div>
-CONTENT_EOF
-    done
-    
-    # 替换模板占位符
-    sed "s/{{YEAR}}/$year/g; s/{{MONTH}}/$month/g; s/{{WEIGHT}}/$weight/g" \
-        "$template_file" > "$temp_file"
-    
-    # 插入内容
-    sed "/{{CONTENT}}/r $content_file" "$temp_file" | \
-        sed '/{{CONTENT}}/d' > "${dest_dir}/_index.md"
-    
-    # 清理临时文件
-    rm -f "$temp_file" "$content_file"
-    
-    log "Generated month index: ${dest_dir}/_index.md"
+
+    local day_count="${#dates[@]}"
+    local month_index_file="${dest_dir}/_index.md"
+
+    cat > "$month_index_file" <<EOF
+---
+title: "${year}-${month}"
+weight: $weight
+breadcrumbs: false
+sidebar:
+  open: true
+description: "${year}年${month}月 AI 每日简报归档"
+month:
+  year: "$year"
+  month: "$month"
+  dayCount: $day_count
+---
+EOF
+
+    log "Generated month index metadata: $month_index_file"
 }
 
 # 生成首页
 generate_home_page() {
-    log "Starting home page generation..."
-    
-    local template_file="${TEMPLATE_DIR}/home-index.md"
-    [[ -f "$template_file" ]] || die "Home template not found: $template_file"
-    
-    local cards_file="${CONTENT_DIR}/.cards_tmp"
-    
-    # 收集月份卡片
-    : > "$cards_file"
-    
-    local month_count=0
-    for month_dir in "${CONTENT_DIR}"/20*/; do
-        [[ -d "$month_dir" ]] || continue
-        [[ -f "${month_dir}/_index.md" ]] || continue
-        
-        local dirname
-        dirname="$(basename "$month_dir")"
-        local year="${dirname:0:4}"
-        local month="${dirname:5:2}"
-        
-        # 统计文章数量
-        local article_count
-        article_count=$(find "$month_dir" -name "*.md" -not -name "_index.md" -type f | wc -l)
-        
-        cat >> "$cards_file" << CARD_EOF
-<div class="month-card">
-  <h3><a href="${dirname}">${year}年${month}月</a></h3>
-  <p>收录 ${article_count} 篇AI日报，涵盖技术突破、产业动态、投资并购等关键资讯</p>
-</div>
-CARD_EOF
-        # 修复：使用安全的递增方式
-        month_count=$((month_count + 1))
-    done
-    
-    # 如果没有数据，显示提示
-    if [[ $month_count -eq 0 ]]; then
-        cat > "$cards_file" << NO_DATA_EOF
-<div class="no-data-card">
-  <h3>暂无日报数据</h3>
-  <p>AI每日简报正在筹备中，敬请期待...</p>
-</div>
-NO_DATA_EOF
-    fi
-    
-    # 生成首页
-    if sed "/{{MONTH_CARDS}}/r $cards_file" "$template_file" | \
-        sed '/{{MONTH_CARDS}}/d' > "${CONTENT_DIR}/_index.md"; then
-        log "Generated home page with $month_count months"
-    else
-        die "Failed to generate home page"
-    fi
-    
-    # 清理临时文件
-    rm -f "$cards_file"
+    log "Refreshing home page metadata..."
+
+    local home_file="${CONTENT_DIR}/_index.md"
+
+    cat > "$home_file" <<'EOF'
+---
+title: AI每日简报 - 您的人工智能情报站
+linkTitle: AI每日简报
+breadcrumbs: false
+description: "每天 3 分钟，速览全球 AI 关键信息。自动聚合公开权威源，事件聚类 + LLM 摘要，原文一键直达；支持网站、RSS 与 Telegram 订阅。"
+cascade:
+  type: docs
+home:
+  hero:
+    title: "AI每日简报"
+    subtitle: "每天 3 分钟，速览全球 AI 关键信息。自动聚合公开权威源，事件聚类 + LLM 摘要，原文一键直达。"
+    bullets:
+      - "多源聚合：Hacker News / Twitter / Reddit 等公开渠道"
+      - "智能处理：嵌入 → 去重 → 话题聚类（HDBSCAN）→ 重排序（BGE-Reranker）→ 摘要"
+      - "原文可追溯：保留原始链接，便于快速核验与延伸阅读"
+      - "多渠道分发：网站阅读、RSS 订阅、Telegram 推送"
+---
+EOF
+
+    log "Updated home page metadata: $home_file"
 }
 
 # =============================================================================
