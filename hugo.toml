@@ -130,6 +130,19 @@ home = ["HTML", "RSS", "markdown"]
 section = ["HTML", "RSS", "markdown"]
 page = ["HTML", "markdown"]
 
+# 关闭全站面包屑（覆盖主题默认 docs/blog 页面行为）
+[[cascade]]
+  [cascade._target]
+    kind = "page"
+  [cascade.params]
+    breadcrumbs = false
+
+[[cascade]]
+  [cascade._target]
+    kind = "section"
+  [cascade.params]
+    breadcrumbs = false
+
 # 自定义媒体类型
 [mediaTypes]
 [mediaTypes.'text/markdown']
