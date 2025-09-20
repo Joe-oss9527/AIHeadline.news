@@ -1,5 +1,4 @@
 ---
-title: AI 快讯 - 您的人工智能情报站
 linkTitle: AI 快讯
 breadcrumbs: false
 description: "每天 3 分钟，速览全球 AI 关键信息。自动聚合公开权威源，事件聚类 + LLM 摘要，原文一键直达；支持网站、RSS 与 Telegram 订阅。"
