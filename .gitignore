@@ -1,0 +1,33 @@
+# Hugo build outputs
+public/
+resources/
+
+# Hugo cache
+.hugo_build.lock
+
+# Auto-generated content (per CLAUDE.md instructions)
+content/
+
+# Local development
+.dev.vars
+node_modules/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp

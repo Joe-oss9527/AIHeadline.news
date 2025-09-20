@@ -121,6 +121,12 @@
 /*────────────────── 页脚 ──────────────────*/
 footer .hx-max-w-screen-xl { max-width: 100%; }
 
+/* 让Hextra footer容器居中 */
+.hextra-footer {
+  display: flex;
+  justify-content: center;
+}
+
 .footer-wrapper {
   display: flex;
   justify-content: center;
@@ -138,6 +144,7 @@ footer .hx-max-w-screen-xl { max-width: 100%; }
   font-size: 0.875rem;
   color: #6b7280;
   list-style: none;
+  padding: 0;
 }
 
 .footer-links a,
