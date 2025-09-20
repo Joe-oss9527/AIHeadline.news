@@ -7,53 +7,27 @@ cascade:
   type: docs
 ---
 
-<div class="newspaper-masthead border-b-4 border-double border-gray-900 dark:border-gray-100 pb-8 mb-12">
-  <div class="text-center">
-    <h1 class="page-title text-5xl md:text-6xl font-bold mb-4 font-serif text-gray-900 dark:text-gray-100">
-      AI每日简报
-    </h1>
-    <div class="sub-head-en text-lg md:text-xl text-gray-600 dark:text-gray-400 italic mb-3">
-      GLOBAL AI MORNING BRIEF · TRUSTED INSIGHTS
-    </div>
-    <p class="text-base md:text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto mb-6">
-      每天 3 分钟，速览全球 AI 关键信息。自动聚合公开权威源，事件聚类 + LLM 摘要，原文一键直达；支持网站、RSS 与 Telegram 订阅。
-    </p>
-    <div class="max-w-4xl mx-auto">
-      <div class="grid md:grid-cols-2 gap-4 text-sm text-gray-600 dark:text-gray-400">
-        <div class="flex items-center justify-center">
-          <span class="mr-2">📰</span>
-          多源聚合：Hacker News / Twitter / Reddit 等公开渠道
-        </div>
-        <div class="flex items-center justify-center">
-          <span class="mr-2">🧠</span>
-          智能处理：嵌入 → 去重 → 话题聚类（HDBSCAN）→ 重排序（BGE-Reranker）→ 摘要
-        </div>
-        <div class="flex items-center justify-center">
-          <span class="mr-2">🔗</span>
-          原文可追溯：保留原始链接，便于快速核验与延伸阅读
-        </div>
-        <div class="flex items-center justify-center">
-          <span class="mr-2">📡</span>
-          多渠道分发：网站阅读、RSS 订阅、Telegram 推送
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+## AI 快讯 · Twitter
 
-<div class="newspaper-archive hx-mt-12">
-  <h2 class="section-title text-3xl font-bold mb-8 text-center font-serif border-b-2 border-gray-900 dark:border-gray-100 pb-4">
-    📅 历史日报档案
-  </h2>
-  
-  <div class="newspaper-grid grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-<div class="month-card">
-  <h3><a href="2025-08">2025年08月</a></h3>
-  <p>收录 1 篇AI日报，涵盖技术突破、产业动态、投资并购等关键资讯</p>
-</div>
-<div class="month-card">
-  <h3><a href="2025-09">2025年09月</a></h3>
-  <p>收录 1 篇AI日报，涵盖技术突破、产业动态、投资并购等关键资讯</p>
-</div>
-  </div>
-</div>
+> 2025-09-19T15:30:10Z
+
+## 1. PyTorch优化、AI模型进展及工具更新
+
+- Meta工程师通过并行Triton编译和动态形状标记，将大型PyTorch模型的编译时间缩短了80%。 [消息来源](https://x.com/PyTorch/status/1968718566774960599)
+- Google的Gemini 2.5 Deep Think高级版本在ICPC世界总决赛中获得金牌表现。 [消息来源](https://x.com/JeffDean/status/1968792412190347607)
+- Hugging Face推广新的实验跟踪库trackio，其语法与wandb相同，可作为直接替代品。 [消息来源](https://x.com/huggingface/status/1969054496866103424)
+- 阿里巴巴的WAN 2.2 animate模型及演示已在Hugging Face上正式发布。 [消息来源](https://x.com/huggingface/status/1968883058880241998)
+
+## 2. AI视频与世界模型进展及行业动态
+
+- Luma AI发布Ray3，号称全球首个推理视频模型，支持工作室级HDR，并新增快速草稿模式。 [消息来源](https://x.com/EMostaque/status/1968728961489182767)
+- Yann LeCun在VivaTech 2025上讨论了世界模型、推理机器以及1.2B参数的V-JEPA 2。 [消息来源](https://x.com/ylecun/status/1968874451639918853)
+- NVIDIA通过NVIDIA Connect计划加速ISV的开发和市场发布，提供个性化支持和全球网络。 [消息来源](https://x.com/NVIDIAAI/status/1968706611184050646)
+- PyTorchCon将设立LLMs专题，探讨前沿架构和训练优化，以支持大型模型开发。 [消息来源](https://x.com/PyTorch/status/1968736931765686404)
+
+## 3. 开源视频编辑工具与AI开发集成
+
+- Decart开源了Lucy Edit，称其为视频领域的首个基础模型，并发布了技术报告。 [消息来源](https://x.com/EMostaque/status/1968923948667523077)
+- Lucy Video Edit在发布不到一小时内即被集成到Anycoder，成为首个支持视频编辑的vibe coding应用。 [消息来源](https://x.com/ClementDelangue/status/1968796193502159233)
+- Stability AI的图像服务已在Amazon Bedrock上推出，为AWS云基础设施带来专业级图像编辑能力。 [消息来源](https://x.com/StabilityAI/status/1968799176420114913)
+- 阿里巴巴的Wan2.2-Animate模型实现了令人印象深刻的角色交换功能，且免费开源。 [消息来源](https://x.com/Thom_Wolf/status/1968964119224078398)

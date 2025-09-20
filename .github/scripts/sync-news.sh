@@ -276,103 +276,132 @@ delete_daily_page() {
     fi
 }
 
-# 生成月份索引页面
+# 生成月份索引页面（简化版，无需模板）
 generate_month_index() {
     local dest_dir="$1"
     local year="$2"
     local month="$3"
     local dates=("${@:4}")
-    
+
     local weight
     weight=$(calculate_weight "$year" "$month")
-    
-    local template_file="${TEMPLATE_DIR}/month-index.md"
-    [[ -f "$template_file" ]] || die "Template not found: $template_file"
-    
-    local temp_file="${dest_dir}/.month_index_tmp"
-    local content_file="${dest_dir}/.content_tmp"
-    
-    # 生成内容列表
-    : > "$content_file"
-    for date_str in "${dates[@]}"; do
-        eval "$(parse_date "$date_str")"
-        cat >> "$content_file" << CONTENT_EOF
-<div class="daily-article">
-  <a href="${year}-${month}-${day}">${month}-${day} 日报</a>
-</div>
-CONTENT_EOF
-    done
-    
-    # 替换模板占位符
-    sed "s/{{YEAR}}/$year/g; s/{{MONTH}}/$month/g; s/{{WEIGHT}}/$weight/g" \
-        "$template_file" > "$temp_file"
-    
-    # 插入内容
-    sed "/{{CONTENT}}/r $content_file" "$temp_file" | \
-        sed '/{{CONTENT}}/d' > "${dest_dir}/_index.md"
-    
-    # 清理临时文件
-    rm -f "$temp_file" "$content_file"
-    
+
+    # 直接生成月份索引内容
+    {
+        echo "---"
+        echo "title: \"${year}-${month}\""
+        echo "weight: $weight"
+        echo "breadcrumbs: false"
+        echo "sidebar:"
+        echo "  open: true"
+        echo "---"
+        echo ""
+        echo "<div class=\"newspaper-month-header border-b-4 border-double border-gray-900 dark:border-gray-100 pb-6 mb-8\">"
+        echo "  <div class=\"text-center\">"
+        echo "    <h1 class=\"page-title text-4xl md:text-5xl font-bold font-serif mb-2 text-gray-900 dark:text-gray-100\">"
+        echo "      ${year}年${month}月"
+        echo "    </h1>"
+        echo "    <div class=\"sub-head-en text-lg md:text-xl text-gray-600 dark:text-gray-400 italic mb-4\">"
+        echo "      AI DAILY BRIEFING ARCHIVE"
+        echo "    </div>"
+        echo "    <div class=\"lede-cn text-gray-600 dark:text-gray-400\">"
+        echo "      本月收录 AI 行业重要动态，按日期归档整理"
+        echo "    </div>"
+        echo "  </div>"
+        echo "</div>"
+        echo ""
+        echo "<div class=\"newspaper-daily-list hx-mt-12\">"
+        echo "  <h2 class=\"section-title text-2xl font-bold mb-6 font-serif flex items-center\">"
+        echo "    <span class=\"mr-3\">📰</span>"
+        echo "    本月日报"
+        echo "    <span class=\"en ml-auto text-sm font-normal text-gray-500\">"
+        echo "      Daily AI Briefings"
+        echo "    </span>"
+        echo "  </h2>"
+        echo "  "
+        echo "  <div class=\"newspaper-articles-grid\">"
+
+        # 生成日报链接
+        for date_str in "${dates[@]}"; do
+            eval "$(parse_date "$date_str")"
+            echo "<div class=\"daily-article\">"
+            echo "  <a href=\"${year}-${month}-${day}\">${month}-${day} 日报</a>"
+            echo "</div>"
+        done
+
+        echo "  </div>"
+        echo "</div>"
+    } > "${dest_dir}/_index.md"
+
     log "Generated month index: ${dest_dir}/_index.md"
 }
 
-# 生成首页
+# 生成首页（直接显示最新日报内容）
 generate_home_page() {
     log "Starting home page generation..."
-    
-    local template_file="${TEMPLATE_DIR}/home-index.md"
-    [[ -f "$template_file" ]] || die "Home template not found: $template_file"
-    
-    local cards_file="${CONTENT_DIR}/.cards_tmp"
-    
-    # 收集月份卡片
-    : > "$cards_file"
-    
-    local month_count=0
-    for month_dir in "${CONTENT_DIR}"/20*/; do
-        [[ -d "$month_dir" ]] || continue
-        [[ -f "${month_dir}/_index.md" ]] || continue
-        
-        local dirname
-        dirname="$(basename "$month_dir")"
-        local year="${dirname:0:4}"
-        local month="${dirname:5:2}"
-        
-        # 统计文章数量
-        local article_count
-        article_count=$(find "$month_dir" -name "*.md" -not -name "_index.md" -type f | wc -l)
-        
-        cat >> "$cards_file" << CARD_EOF
-<div class="month-card">
-  <h3><a href="${dirname}">${year}年${month}月</a></h3>
-  <p>收录 ${article_count} 篇AI日报，涵盖技术突破、产业动态、投资并购等关键资讯</p>
-</div>
-CARD_EOF
-        # 修复：使用安全的递增方式
-        month_count=$((month_count + 1))
-    done
-    
-    # 如果没有数据，显示提示
-    if [[ $month_count -eq 0 ]]; then
-        cat > "$cards_file" << NO_DATA_EOF
-<div class="no-data-card">
-  <h3>暂无日报数据</h3>
-  <p>AI每日简报正在筹备中，敬请期待...</p>
-</div>
+
+    # 查找最新的日报文件
+    local latest_file
+    latest_file=$(find "$CONTENT_DIR" -name "*.md" -path "*/20??-??/20??-??-??.md" -type f | sort -r | head -1)
+
+    if [[ -z "$latest_file" ]]; then
+        log "WARN: No daily report files found, creating placeholder home page"
+        cat > "${CONTENT_DIR}/_index.md" << NO_DATA_EOF
+---
+title: AI每日简报 - 您的人工智能情报站
+linkTitle: AI每日简报
+breadcrumbs: false
+description: "每天 3 分钟，速览全球 AI 关键信息。自动聚合公开权威源，事件聚类 + LLM 摘要，原文一键直达；支持网站、RSS 与 Telegram 订阅。"
+cascade:
+  type: docs
+---
+
+## 暂无日报数据
+
+AI每日简报正在筹备中，敬请期待...
 NO_DATA_EOF
+        return 0
     fi
-    
-    # 生成首页
-    if sed "/{{MONTH_CARDS}}/r $cards_file" "$template_file" | \
-        sed '/{{MONTH_CARDS}}/d' > "${CONTENT_DIR}/_index.md"; then
-        log "Generated home page with $month_count months"
-    else
-        die "Failed to generate home page"
-    fi
-    
-    # 清理临时文件
-    rm -f "$cards_file"
+
+    # 复制最新日报内容到首页
+    cp "$latest_file" "${CONTENT_DIR}/_index.md"
+
+    # 修改首页的 frontmatter，保持首页属性
+    local temp_file="${CONTENT_DIR}/.homepage_tmp"
+    local in_frontmatter=false
+    local frontmatter_ended=false
+
+    {
+        echo "---"
+        echo "title: AI每日简报 - 您的人工智能情报站"
+        echo "linkTitle: AI每日简报"
+        echo "breadcrumbs: false"
+        echo "description: \"每天 3 分钟，速览全球 AI 关键信息。自动聚合公开权威源，事件聚类 + LLM 摘要，原文一键直达；支持网站、RSS 与 Telegram 订阅。\""
+        echo "cascade:"
+        echo "  type: docs"
+        echo "---"
+
+        # 输出日报正文内容（跳过原始的 frontmatter）
+        while IFS= read -r line; do
+            if [[ "$line" == "---" ]]; then
+                if [[ "$in_frontmatter" == false ]]; then
+                    in_frontmatter=true
+                    continue
+                elif [[ "$frontmatter_ended" == false ]]; then
+                    frontmatter_ended=true
+                    continue
+                fi
+            fi
+
+            if [[ "$frontmatter_ended" == true ]]; then
+                echo "$line"
+            fi
+        done < "$latest_file"
+    } > "$temp_file"
+
+    mv "$temp_file" "${CONTENT_DIR}/_index.md"
+
+    log "Generated home page from latest report: $(basename "$latest_file")"
 }
 
 # =============================================================================
