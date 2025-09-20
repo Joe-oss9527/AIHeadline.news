@@ -1,9 +1,3 @@
-# {{ .Site.Title }}
-
-{{ .Site.Params.description }}
-
----
-
 ## 最新内容
 
 {{- range .Site.RegularPages.ByDate.Reverse }}
