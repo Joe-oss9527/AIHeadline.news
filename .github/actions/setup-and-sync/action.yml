@@ -1,0 +1,106 @@
+name: 'Setup Hugo and Sync Content'
+description: 'Composite action to setup Hugo, update submodules, and sync content'
+inputs:
+  hugo-version:
+    description: 'Hugo version to install'
+    required: false
+    default: '0.150.0'
+  sync-mode:
+    description: 'Sync mode: auto, full, or incremental'
+    required: false
+    default: 'auto'
+  changed-dates:
+    description: 'Comma-separated list of changed dates (YYYYMMDD)'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Hugo CLI
+      shell: bash
+      run: |
+        wget -O "${{ runner.temp }}/hugo.deb" "https://github.com/gohugoio/hugo/releases/download/v${{ inputs.hugo-version }}/hugo_extended_${{ inputs.hugo-version }}_linux-amd64.deb" \
+          && sudo dpkg -i "${{ runner.temp }}/hugo.deb"
+
+    - name: Update submodules
+      shell: bash
+      run: |
+        git submodule update --init --depth 1 source-news
+
+    - name: Restore sync cache
+      uses: actions/cache@v4
+      with:
+        path: ./.cache
+        key: sync-state-${{ github.ref_name }}-${{ github.run_id }}
+        restore-keys: |
+          sync-state-${{ github.ref_name }}-
+          sync-state-
+
+    - name: Compute changed dates
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p .cache
+        STATE_FILE=.cache/source_news_sha
+        OLD_SUB=""
+        if [[ -f "$STATE_FILE" ]]; then
+          OLD_SUB="$(cat "$STATE_FILE" || true)"
+        fi
+        NEW_SUB="$(git ls-tree HEAD source-news | awk '{print $3}')"
+        echo "Old submodule SHA: ${OLD_SUB:-<none>}"
+        echo "New submodule SHA: ${NEW_SUB:-<none>}"
+
+        CHANGED_DATES=""
+        if [[ -n "${OLD_SUB}" && -n "${NEW_SUB}" && "${OLD_SUB}" != "${NEW_SUB}" ]]; then
+          git -C source-news fetch --depth=500 origin || true
+          CHANGED_FILES="$(git -C source-news diff --name-only "${OLD_SUB}" "${NEW_SUB}" -- '*/briefing_*.md' || true)"
+          if [[ -n "${CHANGED_FILES}" ]]; then
+            CHANGED_DATES=$(printf '%s\n' "${CHANGED_FILES}" | sed -n 's#.*briefing_\([0-9]\{8\}\)T[0-9]\{6\}Z\.md#\1#p' | sort -u | paste -sd, -)
+          fi
+        fi
+        echo "CHANGED_DATES=${CHANGED_DATES}" | tee -a "$GITHUB_ENV"
+
+        # 检测站点代码/模板是否变更
+        CODE_CHANGED_FILES="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" -- .github/scripts layouts hugo.toml assets static archetypes || true)"
+        if [[ -n "$CODE_CHANGED_FILES" ]]; then
+          CODE_CHANGED="true"
+          echo "CODE_CHANGED=true" | tee -a "$GITHUB_ENV"
+        else
+          CODE_CHANGED="false"
+          echo "CODE_CHANGED=false" | tee -a "$GITHUB_ENV"
+        fi
+
+        # 决定同步模式
+        DOW=$(date -u +%u)
+        SYNC_MODE="${{ inputs.sync-mode }}"
+        if [[ "$SYNC_MODE" == "auto" ]]; then
+          if [[ ! -f "$STATE_FILE" || -z "${OLD_SUB}" ]]; then
+            SYNC_MODE="full"
+            echo "First run detected -> full rebuild"
+          elif [[ "$DOW" == "7" ]]; then
+            SYNC_MODE="full"
+          elif [[ "$CODE_CHANGED" == "true" ]]; then
+            SYNC_MODE="full"
+            echo "Site code/templates changed -> full rebuild"
+          elif [[ "${GITHUB_EVENT_NAME}" == "push" && -z "${CHANGED_DATES}" ]]; then
+            SYNC_MODE="full"
+            echo "Push with no content changes -> full rebuild"
+          else
+            SYNC_MODE="incremental"
+          fi
+        fi
+        echo "SYNC_MODE=${SYNC_MODE}" | tee -a "$GITHUB_ENV"
+
+        # 保存本次 submodule 指针
+        printf '%s' "${NEW_SUB}" > "$STATE_FILE"
+
+    - name: Sync markdown files
+      shell: bash
+      run: |
+        chmod +x ./.github/scripts/sync-news.sh
+        DATES_TO_USE="${{ inputs.changed-dates }}"
+        if [[ -z "$DATES_TO_USE" ]]; then
+          DATES_TO_USE="${CHANGED_DATES:-}"
+        fi
+        ./.github/scripts/sync-news.sh --mode="${SYNC_MODE}" --dates="${DATES_TO_USE}"

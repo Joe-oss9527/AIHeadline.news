@@ -108,7 +108,7 @@ jobs:
           fi
           echo "CHANGED_DATES=${CHANGED_DATES}" | tee -a "$GITHUB_ENV"
           # 检测站点代码/模板是否变更（需要立即生效）
-          CODE_CHANGED_FILES="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" -- .github/scripts .github/templates layouts hugo.toml assets static archetypes || true)"
+          CODE_CHANGED_FILES="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" -- .github/scripts layouts hugo.toml assets static archetypes || true)"
           if [[ -n "$CODE_CHANGED_FILES" ]]; then
             CODE_CHANGED="true"
             echo "CODE_CHANGED=true" | tee -a "$GITHUB_ENV"
@@ -234,7 +234,7 @@ jobs:
             fi
           fi
           echo "CHANGED_DATES=${CHANGED_DATES}" | tee -a "$GITHUB_ENV"
-          CODE_CHANGED_FILES="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" -- .github/scripts .github/templates layouts hugo.toml assets static archetypes || true)"
+          CODE_CHANGED_FILES="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" -- .github/scripts layouts hugo.toml assets static archetypes || true)"
           if [[ -n "$CODE_CHANGED_FILES" ]]; then
             CODE_CHANGED="true"
             echo "CODE_CHANGED=true" | tee -a "$GITHUB_ENV"

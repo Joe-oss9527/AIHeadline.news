@@ -2,6 +2,7 @@
 title: "2025-08"
 weight: 74919
 breadcrumbs: false
+hideTitle: true
 sidebar:
   open: true
 ---
