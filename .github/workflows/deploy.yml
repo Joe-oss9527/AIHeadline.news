@@ -11,9 +11,10 @@ on:
 
 # 设置GITHUB_TOKEN的权限
 permissions:
-  contents: write  # 需要写权限来自动更新submodule
-  pages: write
-  id-token: write
+  contents: write     # 需要写权限来自动更新submodule
+  pages: write        # GitHub Pages 部署所需
+  id-token: write     # OIDC token 用于 Pages 部署
+  actions: read       # 读取 workflow 运行状态
 
 # 只允许一个并发部署，跳过正在运行和最新队列之间的运行队列
 concurrency:
@@ -26,134 +27,44 @@ defaults:
     shell: bash
 
 jobs:
-  # 检查并更新子模块
-  check-submodule:
+  # 构建任务
+  build:
     runs-on: ubuntu-24.04
+    env:
+      HUGO_VERSION: 0.150.0
     steps:
+      # 检出网站代码仓库
       - name: Checkout website repo
         uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Check and update submodule
-        run: |
-          # Initialize and update to latest remote commit
-          git submodule update --init --remote source-news
-          # Check if submodule was updated and commit if necessary
-          if ! git diff --quiet source-news; then
-            git config --local user.email "action@github.com"
-            git config --local user.name "GitHub Action"
-            git add source-news
-            git commit -m "chore(submodule): auto-update source-news to latest"
-            git push
-          fi
-
-  # 构建任务
-  build:
-    needs: check-submodule
-    runs-on: ubuntu-24.04
-    env:
-      HUGO_VERSION: 0.150.0
-    steps:
-      # 步骤1: 安装Hugo CLI
-      - name: Install Hugo CLI
-        run: |
-          wget -O "${{ runner.temp }}/hugo.deb" "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.deb" \
-            && sudo dpkg -i "${{ runner.temp }}/hugo.deb"
-      
-      # 步骤2: 检出网站代码仓库
-      - name: Checkout website repo
-        uses: actions/checkout@v4  # 使用 v4 标签
+      # 使用复合 action 进行设置和同步
+      - name: Setup Hugo and sync content
+        uses: ./.github/actions/setup-and-sync
         with:
-          submodules: recursive
-          fetch-depth: 0
+          hugo-version: ${{ env.HUGO_VERSION }}
+          sync-mode: auto
 
-      - name: Update submodules
-        run: |
-          git submodule update --init --depth 1 source-news
-
-      - name: Restore sync cache
-        uses: actions/cache@v4
-        with:
-          path: ./.cache
-          key: sync-state-${{ github.ref_name }}-${{ github.run_id }}
-          restore-keys: |
-            sync-state-${{ github.ref_name }}-
-            sync-state-
-
-      - name: Compute changed dates
-        id: changed
-        run: |
-          set -euo pipefail
-          mkdir -p .cache
-          STATE_FILE=.cache/source_news_sha
-          OLD_SUB=""
-          if [[ -f "$STATE_FILE" ]]; then
-            OLD_SUB="$(cat "$STATE_FILE" || true)"
-          fi
-          # 读取当前超级项目中的 submodule 提交指针
-          NEW_SUB="$(git ls-tree HEAD source-news | awk '{print $3}')"
-          echo "Old submodule SHA: ${OLD_SUB:-<none>}"
-          echo "New submodule SHA: ${NEW_SUB:-<none>}"
-          CHANGED_DATES=""
-          if [[ -n "${OLD_SUB}" && -n "${NEW_SUB}" && "${OLD_SUB}" != "${NEW_SUB}" ]]; then
-            # 确保 submodule 仓库包含所需对象
-            git -C source-news fetch --depth=500 origin || true
-            # 列出变更的 briefing markdown 文件，提取日期
-            CHANGED_FILES="$(git -C source-news diff --name-only "${OLD_SUB}" "${NEW_SUB}" -- '*/briefing_*.md' || true)"
-            if [[ -n "${CHANGED_FILES}" ]]; then
-              CHANGED_DATES=$(printf '%s\n' "${CHANGED_FILES}" | sed -n 's#.*briefing_\([0-9]\{8\}\)T[0-9]\{6\}Z\.md#\1#p' | sort -u | paste -sd, -)
-            fi
-          fi
-          echo "CHANGED_DATES=${CHANGED_DATES}" | tee -a "$GITHUB_ENV"
-          # 检测站点代码/模板是否变更（需要立即生效）
-          CODE_CHANGED_FILES="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" -- .github/scripts layouts hugo.toml assets static archetypes || true)"
-          if [[ -n "$CODE_CHANGED_FILES" ]]; then
-            CODE_CHANGED="true"
-            echo "CODE_CHANGED=true" | tee -a "$GITHUB_ENV"
-          else
-            CODE_CHANGED="false"
-            echo "CODE_CHANGED=false" | tee -a "$GITHUB_ENV"
-          fi
-          # 决定同步模式：首次运行或每周日（UTC）全量，否则增量
-          DOW=$(date -u +%u)
-          if [[ ! -f "$STATE_FILE" || -z "${OLD_SUB}" ]]; then
-            echo "SYNC_MODE=full" | tee -a "$GITHUB_ENV"
-            echo "First run detected -> full rebuild"
-          elif [[ "$DOW" == "7" ]]; then
-            echo "SYNC_MODE=full" | tee -a "$GITHUB_ENV"
-          elif [[ "$CODE_CHANGED" == "true" ]]; then
-            echo "SYNC_MODE=full" | tee -a "$GITHUB_ENV"
-            echo "Site code/templates changed -> full rebuild"
-          elif [[ "${GITHUB_EVENT_NAME}" == "push" && -z "${CHANGED_DATES}" ]]; then
-            echo "SYNC_MODE=full" | tee -a "$GITHUB_ENV"
-            echo "Push with no content changes -> full rebuild"
-          else
-            echo "SYNC_MODE=incremental" | tee -a "$GITHUB_ENV"
-          fi
-          # 保存本次 submodule 指针
-          printf '%s' "${NEW_SUB}" > "$STATE_FILE"
-
-      # 步骤4: 同步新闻文件（增量/全量按 SYNC_MODE）
-      - name: Sync markdown files
-        run: |
-          chmod +x ./.github/scripts/sync-news.sh
-          ./.github/scripts/sync-news.sh --mode="${SYNC_MODE}" --dates="${CHANGED_DATES}"
-
-      # 步骤5: 设置Pages
+      # 设置Pages
       - name: Setup Pages
         id: pages
-        uses: actions/configure-pages@v5  # 使用最新版本
+        uses: actions/configure-pages@v5
 
       # 步骤6: 构建网站
+      - name: Generate Hugo cache key
+        id: hugo-cache-key
+        run: |
+          echo "key=hugo-cache-${{ runner.os }}-${{ hashFiles('hugo.toml', 'package*.json', 'go.mod', 'go.sum') }}" >> $GITHUB_OUTPUT
+
       - name: Restore Hugo cache
         uses: actions/cache@v4
         with:
           path: ./.cache/hugo_cache
-          key: hugo-cache-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
+          key: ${{ steps.hugo-cache-key.outputs.key }}-${{ github.sha }}
           restore-keys: |
-            hugo-cache-${{ runner.os }}-${{ github.ref_name }}-
+            ${{ steps.hugo-cache-key.outputs.key }}-
             hugo-cache-${{ runner.os }}-
 
       - name: Build with Hugo
@@ -186,99 +97,38 @@ jobs:
 
   # 部署到Cloudflare Worker
   deploy-cf-worker:
-    needs: check-submodule
     runs-on: ubuntu-24.04
     if: github.ref == 'refs/heads/main'
     env:
       HUGO_VERSION: 0.150.0
     steps:
-      # 步骤1: 检出代码
+      # 检出代码仓库
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Update submodules
-        run: |
-          git submodule update --init --depth 1 source-news
-
-      - name: Restore sync cache
-        uses: actions/cache@v4
+      # 使用复合 action 进行设置和同步
+      - name: Setup Hugo and sync content
+        uses: ./.github/actions/setup-and-sync
         with:
-          path: ./.cache
-          key: sync-state-${{ github.ref_name }}-${{ github.run_id }}
-          restore-keys: |
-            sync-state-${{ github.ref_name }}-
-            sync-state-
-
-      - name: Compute changed dates
-        id: changed
-        run: |
-          set -euo pipefail
-          mkdir -p .cache
-          STATE_FILE=.cache/source_news_sha
-          OLD_SUB=""
-          if [[ -f "$STATE_FILE" ]]; then
-            OLD_SUB="$(cat "$STATE_FILE" || true)"
-          fi
-          NEW_SUB="$(git ls-tree HEAD source-news | awk '{print $3}')"
-          echo "Old submodule SHA: ${OLD_SUB:-<none>}"
-          echo "New submodule SHA: ${NEW_SUB:-<none>}"
-          CHANGED_DATES=""
-          if [[ -n "${OLD_SUB}" && -n "${NEW_SUB}" && "${OLD_SUB}" != "${NEW_SUB}" ]]; then
-            git -C source-news fetch --depth=500 origin || true
-            CHANGED_FILES="$(git -C source-news diff --name-only "${OLD_SUB}" "${NEW_SUB}" -- '*/briefing_*.md' || true)"
-            if [[ -n "${CHANGED_FILES}" ]]; then
-              CHANGED_DATES=$(printf '%s\n' "${CHANGED_FILES}" | sed -n 's#.*briefing_\([0-9]\{8\}\)T[0-9]\{6\}Z\.md#\1#p' | sort -u | paste -sd, -)
-            fi
-          fi
-          echo "CHANGED_DATES=${CHANGED_DATES}" | tee -a "$GITHUB_ENV"
-          CODE_CHANGED_FILES="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" -- .github/scripts layouts hugo.toml assets static archetypes || true)"
-          if [[ -n "$CODE_CHANGED_FILES" ]]; then
-            CODE_CHANGED="true"
-            echo "CODE_CHANGED=true" | tee -a "$GITHUB_ENV"
-          else
-            CODE_CHANGED="false"
-            echo "CODE_CHANGED=false" | tee -a "$GITHUB_ENV"
-          fi
-          DOW=$(date -u +%u)
-          if [[ ! -f "$STATE_FILE" || -z "${OLD_SUB}" ]]; then
-            echo "SYNC_MODE=full" | tee -a "$GITHUB_ENV"
-            echo "First run detected -> full rebuild"
-          elif [[ "$DOW" == "7" ]]; then
-            echo "SYNC_MODE=full" | tee -a "$GITHUB_ENV"
-          elif [[ "$CODE_CHANGED" == "true" ]]; then
-            echo "SYNC_MODE=full" | tee -a "$GITHUB_ENV"
-            echo "Site code/templates changed -> full rebuild"
-          elif [[ "${GITHUB_EVENT_NAME}" == "push" && -z "${CHANGED_DATES}" ]]; then
-            echo "SYNC_MODE=full" | tee -a "$GITHUB_ENV"
-            echo "Push with no content changes -> full rebuild"
-          else
-            echo "SYNC_MODE=incremental" | tee -a "$GITHUB_ENV"
-          fi
-          printf '%s' "${NEW_SUB}" > "$STATE_FILE"
-
-      # 步骤2: 安装 Hugo
-      - name: Install Hugo CLI
-        run: |
-          wget -O "${{ runner.temp }}/hugo.deb" "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.deb" \
-            && sudo dpkg -i "${{ runner.temp }}/hugo.deb"
-
-      # 步骤4: 同步新闻文件（增量/全量按 SYNC_MODE）
-      - name: Sync markdown files
-        run: |
-          chmod +x ./.github/scripts/sync-news.sh
-          ./.github/scripts/sync-news.sh --mode="${SYNC_MODE}" --dates="${CHANGED_DATES}"
+          hugo-version: ${{ env.HUGO_VERSION }}
+          sync-mode: auto
 
       # 步骤5: 构建网站
+      - name: Generate Hugo cache key
+        id: hugo-cache-key
+        run: |
+          echo "key=hugo-cache-${{ runner.os }}-${{ hashFiles('hugo.toml', 'package*.json', 'go.mod', 'go.sum') }}" >> $GITHUB_OUTPUT
+
       - name: Restore Hugo cache
         uses: actions/cache@v4
         with:
           path: ./.cache/hugo_cache
-          key: hugo-cache-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
+          key: ${{ steps.hugo-cache-key.outputs.key }}-${{ github.sha }}
           restore-keys: |
-            hugo-cache-${{ runner.os }}-${{ github.ref_name }}-
+            ${{ steps.hugo-cache-key.outputs.key }}-
             hugo-cache-${{ runner.os }}-
 
       - name: Build with Hugo
@@ -292,13 +142,10 @@ jobs:
           echo "=== Contents of public directory ==="
           ls -la public/
 
-      # 部署到 Cloudflare Worker（使用 wrangler-action，无需本地 Node/npm）
+      # 部署到 Cloudflare Worker
       - name: Deploy to Cloudflare Worker
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
           wranglerVersion: '4.38.0'
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}

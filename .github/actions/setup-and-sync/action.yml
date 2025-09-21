@@ -13,32 +13,103 @@ inputs:
     description: 'Comma-separated list of changed dates (YYYYMMDD)'
     required: false
     default: ''
+  install-hugo:
+    description: 'Whether to install Hugo'
+    required: false
+    default: 'true'
 
 runs:
   using: 'composite'
   steps:
-    - name: Install Hugo CLI
+    - name: Validate inputs
       shell: bash
       run: |
+        # 验证 Hugo 版本格式
+        if [[ ! "${{ inputs.hugo-version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "::error::Invalid Hugo version format: ${{ inputs.hugo-version }}"
+          exit 1
+        fi
+        # 验证同步模式
+        if [[ ! "${{ inputs.sync-mode }}" =~ ^(auto|full|incremental)$ ]]; then
+          echo "::error::Invalid sync mode: ${{ inputs.sync-mode }}"
+          exit 1
+        fi
+        echo "::notice::Input validation passed"
+
+    - name: Install Hugo CLI
+      if: inputs.install-hugo == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        trap 'echo "::error::Hugo installation failed"' ERR
+        echo "::group::Installing Hugo ${{ inputs.hugo-version }}"
         wget -O "${{ runner.temp }}/hugo.deb" "https://github.com/gohugoio/hugo/releases/download/v${{ inputs.hugo-version }}/hugo_extended_${{ inputs.hugo-version }}_linux-amd64.deb" \
           && sudo dpkg -i "${{ runner.temp }}/hugo.deb"
+        echo "::endgroup::"
+        hugo version
 
-    - name: Update submodules
+    - name: Check and update submodule
       shell: bash
       run: |
-        git submodule update --init --depth 1 source-news
+        set -euo pipefail
+        trap 'echo "::error::Submodule update failed at line $LINENO"' ERR
+
+        echo "::group::Updating submodule"
+        # Initialize and update to latest remote commit with retry
+        for i in {1..3}; do
+          if git submodule update --init --remote source-news; then
+            echo "::notice::Submodule updated successfully"
+            break
+          elif [[ $i -eq 3 ]]; then
+            echo "::error::Failed to update submodule after 3 attempts"
+            exit 1
+          else
+            echo "::warning::Submodule update attempt $i failed, retrying..."
+            sleep 5
+          fi
+        done
+        echo "::endgroup::"
+
+        # Check if submodule was updated and commit if necessary
+        if ! git diff --quiet source-news; then
+          echo "::group::Committing submodule update"
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add source-news
+          git commit -m "chore(submodule): auto-update source-news to latest"
+
+          # Push with retry
+          for i in {1..3}; do
+            if git push; then
+              echo "::notice::Submodule update committed and pushed"
+              break
+            elif [[ $i -eq 3 ]]; then
+              echo "::error::Failed to push submodule update after 3 attempts"
+              exit 1
+            else
+              echo "::warning::Push attempt $i failed, retrying..."
+              sleep 5
+            fi
+          done
+          echo "::endgroup::"
+        else
+          echo "::notice::No submodule changes detected"
+        fi
 
     - name: Restore sync cache
       uses: actions/cache@v4
       with:
         path: ./.cache
-        key: sync-state-${{ github.ref_name }}-${{ github.run_id }}
+        key: sync-state-${{ github.ref_name }}-${{ github.sha }}
         restore-keys: |
           sync-state-${{ github.ref_name }}-
           sync-state-
 
     - name: Compute changed dates
       shell: bash
+      env:
+        GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+        GITHUB_SHA: ${{ github.sha }}
       run: |
         set -euo pipefail
         mkdir -p .cache
@@ -61,8 +132,11 @@ runs:
         fi
         echo "CHANGED_DATES=${CHANGED_DATES}" | tee -a "$GITHUB_ENV"
 
-        # 检测站点代码/模板是否变更
-        CODE_CHANGED_FILES="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" -- .github/scripts layouts hugo.toml assets static archetypes || true)"
+        # 检测站点代码/模板是否变更（需要立即生效）
+        CODE_CHANGED_FILES=""
+        if [[ -n "${GITHUB_EVENT_BEFORE:-}" ]]; then
+          CODE_CHANGED_FILES="$(git diff --name-only "${GITHUB_EVENT_BEFORE}" "${GITHUB_SHA}" -- .github/scripts layouts hugo.toml assets static archetypes || true)"
+        fi
         if [[ -n "$CODE_CHANGED_FILES" ]]; then
           CODE_CHANGED="true"
           echo "CODE_CHANGED=true" | tee -a "$GITHUB_ENV"
@@ -71,18 +145,29 @@ runs:
           echo "CODE_CHANGED=false" | tee -a "$GITHUB_ENV"
         fi
 
-        # 决定同步模式
+        # 决定同步模式：首次运行或每周日（UTC）全量，否则增量
         DOW=$(date -u +%u)
         SYNC_MODE="${{ inputs.sync-mode }}"
         if [[ "$SYNC_MODE" == "auto" ]]; then
+          # 如果缓存文件不存在或OLD_SUB为空，则使用最近7天的回溯逻辑
           if [[ ! -f "$STATE_FILE" || -z "${OLD_SUB}" ]]; then
             SYNC_MODE="full"
-            echo "First run detected -> full rebuild"
+            echo "First run or cache miss detected -> full rebuild"
           elif [[ "$DOW" == "7" ]]; then
             SYNC_MODE="full"
+            echo "Weekly full rebuild (Sunday)"
           elif [[ "$CODE_CHANGED" == "true" ]]; then
             SYNC_MODE="full"
             echo "Site code/templates changed -> full rebuild"
+          elif [[ "${GITHUB_EVENT_NAME}" == "schedule" ]]; then
+            # 定时任务使用增量模式，但如果没有变更则使用最近7天的数据
+            if [[ -n "${CHANGED_DATES}" ]]; then
+              SYNC_MODE="incremental"
+              echo "Scheduled run with detected changes -> incremental"
+            else
+              SYNC_MODE="full"
+              echo "Scheduled run with no changes detected -> full rebuild"
+            fi
           elif [[ "${GITHUB_EVENT_NAME}" == "push" && -z "${CHANGED_DATES}" ]]; then
             SYNC_MODE="full"
             echo "Push with no content changes -> full rebuild"
