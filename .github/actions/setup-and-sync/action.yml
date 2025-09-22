@@ -50,11 +50,17 @@ runs:
 
     - name: Check and update submodule
       shell: bash
+      timeout-minutes: 10
       run: |
         set -euo pipefail
         trap 'echo "::error::Submodule update failed at line $LINENO"' ERR
 
         echo "::group::Updating submodule"
+        echo "::notice::Current git status before submodule update:"
+        git status --short
+        echo "::notice::Current submodule status:"
+        git submodule status
+
         # Initialize and update to latest remote commit with retry
         for i in {1..3}; do
           if git submodule update --init --remote source-news; then
@@ -64,10 +70,16 @@ runs:
             echo "::error::Failed to update submodule after 3 attempts"
             exit 1
           else
-            echo "::warning::Submodule update attempt $i failed, retrying..."
+            SUBMODULE_EXIT_CODE=$?
+            echo "::warning::Submodule update attempt $i failed with exit code $SUBMODULE_EXIT_CODE"
+            echo "::notice::Current git status: $(git status --porcelain || echo 'unable to get status')"
+            echo "::notice::Current submodule status: $(git submodule status || echo 'unable to get submodule status')"
             sleep 5
           fi
         done
+
+        echo "::notice::Submodule status after update:"
+        git submodule status
         echo "::endgroup::"
 
         # Check if submodule was updated and commit if necessary
@@ -78,17 +90,70 @@ runs:
           git add source-news
           git commit -m "chore(submodule): auto-update source-news to latest"
 
-          # Push with retry
+          # Push with intelligent retry (handle conflicts)
           for i in {1..3}; do
+            echo "::notice::Push attempt $i of 3"
             if git push; then
-              echo "::notice::Submodule update committed and pushed"
+              echo "::notice::Submodule update committed and pushed successfully"
               break
-            elif [[ $i -eq 3 ]]; then
-              echo "::error::Failed to push submodule update after 3 attempts"
-              exit 1
             else
-              echo "::warning::Push attempt $i failed, retrying..."
-              sleep 5
+              PUSH_EXIT_CODE=$?
+              echo "::warning::Push attempt $i failed with exit code $PUSH_EXIT_CODE"
+
+              # Show detailed git status for debugging
+              echo "::notice::Current git status:"
+              git status --porcelain
+              echo "::notice::Current branch and remote tracking:"
+              git branch -vv
+              echo "::notice::Remote commit log (last 3):"
+              git log --oneline -3 origin/main 2>/dev/null || echo "Unable to fetch remote log"
+
+              if [[ $i -eq 3 ]]; then
+                echo "::error::Failed to push submodule update after 3 attempts"
+                echo "::error::This usually indicates a concurrent push conflict"
+                echo "::error::Manual intervention may be required"
+                exit 1
+              else
+                echo "::notice::Attempting to resolve conflicts by syncing with remote..."
+
+                # Fetch latest changes first
+                if git fetch origin main; then
+                  echo "::notice::Successfully fetched latest changes"
+
+                  # Check if we're behind
+                  LOCAL=$(git rev-parse HEAD)
+                  REMOTE=$(git rev-parse origin/main)
+
+                  if [[ "$LOCAL" != "$REMOTE" ]]; then
+                    echo "::notice::Local branch is behind remote, attempting rebase..."
+                    if git rebase origin/main; then
+                      echo "::notice::Successfully rebased, will retry push"
+                    else
+                      echo "::warning::Rebase failed, checking if remote already has our changes"
+                      git rebase --abort 2>/dev/null || true
+
+                      # Check if remote already contains our submodule update
+                      if git diff --quiet HEAD origin/main -- source-news; then
+                        echo "::notice::Remote already contains our submodule update, syncing to remote"
+                        git reset --hard origin/main
+                      else
+                        echo "::error::Conflicting submodule updates detected"
+                        echo "::error::Local submodule points to: $(git ls-tree HEAD source-news | awk '{print $3}')"
+                        echo "::error::Remote submodule points to: $(git ls-tree origin/main source-news | awk '{print $3}')"
+                        echo "::error::Manual intervention may be required"
+                        exit 1
+                      fi
+                    fi
+                  else
+                    echo "::notice::Local and remote are in sync, will retry push"
+                  fi
+                else
+                  echo "::warning::Failed to fetch latest changes, will retry anyway"
+                fi
+
+                echo "::notice::Waiting 5 seconds before retry..."
+                sleep 5
+              fi
             fi
           done
           echo "::endgroup::"

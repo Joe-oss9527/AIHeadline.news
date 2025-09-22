@@ -16,10 +16,10 @@ permissions:
   id-token: write     # OIDC token 用于 Pages 部署
   actions: read       # 读取 workflow 运行状态
 
-# 只允许一个并发部署，跳过正在运行和最新队列之间的运行队列
+# 只允许一个并发部署，取消进行中的旧部署
 concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  group: "deploy-${{ github.ref }}"
+  cancel-in-progress: true
 
 # 默认设置
 defaults:
