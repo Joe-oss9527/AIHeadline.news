@@ -277,7 +277,7 @@ generate_daily_page() {
 
     # 生成 Front Matter
     echo "---" >> "$daily_file"
-    echo "title: "${year}年${month}月${day}日 AI 快讯"" >> "$daily_file"
+    echo "title: "${month}月${day}日 AI 快讯"" >> "$daily_file"
     echo "weight: $day_weight" >> "$daily_file"
     echo "date: ${year}-${month}-${day}" >> "$daily_file"
     echo "description: "AI 快讯 - ${year}年${month}月${day}日最新动态"" >> "$daily_file"
