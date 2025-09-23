@@ -50,7 +50,6 @@ runs:
 
     - name: Check and update submodule
       shell: bash
-      timeout-minutes: 10
       run: |
         set -euo pipefail
         trap 'echo "::error::Submodule update failed at line $LINENO"' ERR

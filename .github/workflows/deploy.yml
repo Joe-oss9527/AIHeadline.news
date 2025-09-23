@@ -43,6 +43,7 @@ jobs:
       # 使用复合 action 进行设置和同步
       - name: Setup Hugo and sync content
         uses: ./.github/actions/setup-and-sync
+        timeout-minutes: 15
         with:
           hugo-version: ${{ env.HUGO_VERSION }}
           sync-mode: auto
@@ -112,6 +113,7 @@ jobs:
       # 使用复合 action 进行设置和同步
       - name: Setup Hugo and sync content
         uses: ./.github/actions/setup-and-sync
+        timeout-minutes: 15
         with:
           hugo-version: ${{ env.HUGO_VERSION }}
           sync-mode: auto
