@@ -183,7 +183,7 @@ collect_month_dates() {
         done
 }
 
-# 生成日报页面
+# 生成日报页面（支持多源合并）
 generate_daily_page() {
     local month_dir="$1"
     local dest_dir="$2"
@@ -193,74 +193,134 @@ generate_daily_page() {
     local day_weight
     day_weight=$(calculate_weight "$year" "$month" "$day")
 
-    # 选择当天最新的一份（跨管道取最大时间戳）
-    local selected_file=""
-    local selected_pipeline=""
-    local best_stamp=""
+    log "Processing date: $date_str (${year}-${month}-${day})"
 
-    while IFS= read -r -d '' file; do
-        local rel="${file#${month_dir}/}"
-        local pipeline="${rel%%/*}"
-        local filename="${file##*/}"
+    # 收集当天所有来源的文件（兼容 bash 3.2，使用数组而非关联数组）
+    local source_files=""
+    local source_stamps=""
+    local source_display_names=""
+    local source_slugs=""
+    local found_sources=0
 
-        if [[ "$filename" =~ ^briefing_([0-9]{8})T([0-9]{6})Z\.md$ ]]; then
-            local file_date="${BASH_REMATCH[1]}"
-            local time_part="${BASH_REMATCH[2]}"
+    # 定义已知的数据源
+    local known_sources="ai-briefing-twitter-list ai-briefing-hackernews ai-briefing-reddit"
 
-            [[ "$file_date" == "$date_str" ]] || continue
+    # 为每个数据源查找最新文件
+    for source_slug in $known_sources; do
+        local source_dir="$month_dir/$source_slug"
+        [[ -d "$source_dir" ]] || continue
 
-            local stamp="${file_date}T${time_part}Z"
-            if [[ -z "$best_stamp" || "$stamp" > "$best_stamp" ]]; then
-                best_stamp="$stamp"
-                selected_file="$file"
-                selected_pipeline="$pipeline"
+        local best_file=""
+        local best_stamp=""
+
+        while IFS= read -r -d '' file; do
+            local filename="${file##*/}"
+
+            if [[ "$filename" =~ ^briefing_([0-9]{8})T([0-9]{6})Z\.md$ ]]; then
+                local file_date="${BASH_REMATCH[1]}"
+                local time_part="${BASH_REMATCH[2]}"
+
+                [[ "$file_date" == "$date_str" ]] || continue
+
+                local stamp="${file_date}T${time_part}Z"
+                if [[ -z "$best_stamp" || "$stamp" > "$best_stamp" ]]; then
+                    best_stamp="$stamp"
+                    best_file="$file"
+                fi
             fi
-        else
-            log "WARN: Unrecognized filename format: $filename"
-        fi
-    done < <(find "$month_dir" -mindepth 2 -maxdepth 2 -type f -name "briefing_${date_str}T*.md" -print0 2>/dev/null)
+        done < <(find "$source_dir" -maxdepth 1 -type f -name "briefing_${date_str}T*.md" -print0 2>/dev/null)
 
-    if [[ -z "$selected_file" ]]; then
+        # 如果找到该源的文件，加入列表
+        if [[ -n "$best_file" ]]; then
+            # 从源 Markdown 抽取 H1 作为显示名
+            local display_name
+            display_name="$(awk '/^# /{ sub(/^# /, ""); print; exit }' "$best_file" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+            if [[ -z "$display_name" ]]; then
+                # 将 slug 转换为可读形式作为回退
+                case "$source_slug" in
+                    "ai-briefing-twitter-list") display_name="AI 快讯 · Twitter" ;;
+                    "ai-briefing-hackernews") display_name="AI 快讯 · Hacker News" ;;
+                    "ai-briefing-reddit") display_name="AI 快讯 · Reddit" ;;
+                    *) display_name="${source_slug//-/ }" ;;
+                esac
+            fi
+
+            # 添加到列表（使用分隔符分隔）
+            if [[ -z "$source_files" ]]; then
+                source_files="$best_file"
+                source_stamps="$best_stamp"
+                source_display_names="$display_name"
+                source_slugs="$source_slug"
+            else
+                source_files="$source_files|$best_file"
+                source_stamps="$source_stamps|$best_stamp"
+                source_display_names="$source_display_names|$display_name"
+                source_slugs="$source_slugs|$source_slug"
+            fi
+            found_sources=$((found_sources + 1))
+
+            log "  Found source: $source_slug -> $display_name (${best_stamp})"
+        else
+            log "  No files found for source: $source_slug"
+        fi
+    done
+
+    # 如果没有找到任何源文件，跳过
+    if [[ $found_sources -eq 0 ]]; then
         log "WARN: No briefing files found for date $date_str"
         return 1
     fi
 
-    # 已选择最新一份，开始写入页面
-
+    # 开始生成页面
     local daily_file="${dest_dir}/${year}-${month}-${day}.md"
     : > "$daily_file"
 
+    # 生成 Front Matter
     echo "---" >> "$daily_file"
     echo "title: "${year}年${month}月${day}日 AI 快讯"" >> "$daily_file"
     echo "weight: $day_weight" >> "$daily_file"
     echo "date: ${year}-${month}-${day}" >> "$daily_file"
     echo "description: "AI 快讯 - ${year}年${month}月${day}日最新动态"" >> "$daily_file"
 
-    # 单一来源，无需排序
+    # 创建临时文件来处理排序
+    local temp_file="/tmp/source_sort_$$"
+    echo "$source_stamps" | tr '|' '\n' > "$temp_file.stamps"
+    echo "$source_files" | tr '|' '\n' > "$temp_file.files"
+    echo "$source_display_names" | tr '|' '\n' > "$temp_file.names"
+    echo "$source_slugs" | tr '|' '\n' > "$temp_file.slugs"
 
-    # 从源 Markdown 抽取 H1 作为来源名，若缺失则回退到 slug 的可读形式
-    local display_name
-    display_name="$(awk '/^# /{ sub(/^# /, ""); print; exit }' "$selected_file" | sed 's/^\s*//; s/\s*$//')"
-    if [[ -z "$display_name" ]]; then
-        # 将 slug 中的连字符替换为空格作为简易回退
-        display_name="${selected_pipeline//-/ }"
-    fi
+    # 合并并按时间戳排序
+    paste "$temp_file.stamps" "$temp_file.files" "$temp_file.names" "$temp_file.slugs" | sort -k1 > "$temp_file.sorted"
+
+    # 生成 sources 数组（按时间戳排序）
     echo "sources:" >> "$daily_file"
-    echo "  - $display_name" >> "$daily_file"
+    cut -f3 "$temp_file.sorted" | while IFS= read -r display_name; do
+        echo "  - $display_name" >> "$daily_file"
+    done
+
     echo "source_slugs:" >> "$daily_file"
-    echo "  - $selected_pipeline" >> "$daily_file"
+    cut -f4 "$temp_file.sorted" | while IFS= read -r slug; do
+        echo "  - $slug" >> "$daily_file"
+    done
 
     echo "toc: true" >> "$daily_file"
     echo "---" >> "$daily_file"
 
-    # 渲染正文：仅一份来源（保留源文件 H1，已在渲染中降级为 H2）
-    {
-        echo ""
-        render_markdown_body "$selected_file"
-        echo ""
-    } >> "$daily_file"
+    # 渲染正文：按时间戳顺序合并所有源
+    echo "" >> "$daily_file"
 
-    log "Generated: $daily_file"
+    # 按时间戳排序渲染源文件
+    cut -f2 "$temp_file.sorted" | while IFS= read -r source_file; do
+        # 渲染该源的内容
+        render_markdown_body "$source_file" >> "$daily_file"
+        echo "" >> "$daily_file"
+    done
+
+    # 清理临时文件
+    rm -f "$temp_file"*
+
+    log "Generated: $daily_file (sources: $found_sources)"
+    log "  Sources: $(echo "$source_slugs" | tr '|' ' ')"
 }
 
 # 删除某天生成的页面（用于增量同步：当该日无源文件时清理旧产物）
