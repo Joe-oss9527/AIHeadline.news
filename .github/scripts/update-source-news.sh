@@ -12,7 +12,7 @@ if [[ ! -d "$SUBMODULE_DIR" ]]; then
   git submodule update --init source-news
 fi
 
-if [[ ! -d "$SUBMODULE_DIR/.git" ]]; then
+if [[ ! -e "$SUBMODULE_DIR/.git" ]]; then
   echo "::error::source-news is not a valid git repository"
   exit 1
 fi
