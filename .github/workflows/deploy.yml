@@ -40,13 +40,46 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      # 使用复合 action 进行设置和同步
-      - name: Setup Hugo and sync content
+      # 使用可靠的数据同步机制
+      - name: Reliable data sync
+        id: sync-data
+        uses: ./.github/actions/reliable-sync
+        timeout-minutes: 20
+        with:
+          max-retries: 5
+          retry-delay: 15
+
+      # 健康检查
+      - name: Health check after sync
+        id: health-check
+        uses: ./.github/actions/health-check
+        with:
+          max-age-hours: 8
+
+      # 如果同步失败，尝试使用旧的同步方法作为备用
+      - name: Fallback sync (legacy)
+        if: steps.sync-data.outputs.sync-status == 'failed'
         uses: ./.github/actions/setup-and-sync
         timeout-minutes: 15
         with:
           hugo-version: ${{ env.HUGO_VERSION }}
-          sync-mode: auto
+          sync-mode: full
+
+      # 安装 Hugo
+      - name: Install Hugo
+        run: |
+          set -euo pipefail
+          echo "::group::Installing Hugo ${{ env.HUGO_VERSION }}"
+          wget -O "${{ runner.temp }}/hugo.deb" "https://github.com/gohugoio/hugo/releases/download/v${{ env.HUGO_VERSION }}/hugo_extended_${{ env.HUGO_VERSION }}_linux-amd64.deb"
+          sudo dpkg -i "${{ runner.temp }}/hugo.deb"
+          hugo version
+          echo "::endgroup::"
+
+      # 同步内容
+      - name: Sync content using improved script
+        run: |
+          chmod +x ./.github/scripts/sync-news.sh
+          ./.github/scripts/sync-news.sh --mode=auto
 
       # 设置Pages
       - name: Setup Pages
@@ -110,13 +143,39 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      # 使用复合 action 进行设置和同步
-      - name: Setup Hugo and sync content
+      # 使用可靠的数据同步机制
+      - name: Reliable data sync
+        id: sync-data
+        uses: ./.github/actions/reliable-sync
+        timeout-minutes: 20
+        with:
+          max-retries: 5
+          retry-delay: 15
+
+      # 如果同步失败，尝试使用旧的同步方法
+      - name: Fallback sync (legacy)
+        if: steps.sync-data.outputs.sync-status == 'failed'
         uses: ./.github/actions/setup-and-sync
         timeout-minutes: 15
         with:
           hugo-version: ${{ env.HUGO_VERSION }}
-          sync-mode: auto
+          sync-mode: full
+
+      # 安装 Hugo
+      - name: Install Hugo
+        run: |
+          set -euo pipefail
+          echo "::group::Installing Hugo ${{ env.HUGO_VERSION }}"
+          wget -O "${{ runner.temp }}/hugo.deb" "https://github.com/gohugoio/hugo/releases/download/v${{ env.HUGO_VERSION }}/hugo_extended_${{ env.HUGO_VERSION }}_linux-amd64.deb"
+          sudo dpkg -i "${{ runner.temp }}/hugo.deb"
+          hugo version
+          echo "::endgroup::"
+
+      # 同步内容
+      - name: Sync content using improved script
+        run: |
+          chmod +x ./.github/scripts/sync-news.sh
+          ./.github/scripts/sync-news.sh --mode=auto
 
       # 步骤5: 构建网站
       - name: Generate Hugo cache key

@@ -1,0 +1,151 @@
+# 数据健康监控工作流
+name: News Data Health Monitor
+
+on:
+  # 每小时检查一次
+  schedule:
+    - cron: '0 * * * *'
+
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      max-age-hours:
+        description: 'Maximum age of news data in hours'
+        required: false
+        default: '6'
+        type: string
+
+  # 在数据同步后检查
+  workflow_run:
+    workflows: ["Sync News Data from Archive", "Deploy AI News to Cloudflare & GitHub Pages"]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: "health-monitor"
+  cancel-in-progress: true
+
+jobs:
+  health-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 1
+
+      - name: Run health check
+        id: health-check
+        uses: ./.github/actions/health-check
+        with:
+          max-age-hours: ${{ inputs.max-age-hours || '6' }}
+          telegram-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      - name: Handle unhealthy status
+        if: steps.health-check.outputs.status != 'healthy'
+        run: |
+          echo "::warning::News data health check failed"
+          echo "Status: ${{ steps.health-check.outputs.status }}"
+          echo "Data age: ${{ steps.health-check.outputs.latest-data-age }} hours"
+
+          # 如果数据过期且超过12小时，触发强制同步
+          if [[ "${{ steps.health-check.outputs.status }}" == "stale" ]] &&
+             [[ "${{ steps.health-check.outputs.latest-data-age }}" -gt 12 ]]; then
+            echo "::notice::Triggering emergency sync due to stale data"
+
+            # 触发数据同步工作流
+            gh workflow run sync-news-data.yml \
+              --field force_sync=true \
+              --field reason="emergency-sync-stale-data"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create issue on persistent failures
+        if: steps.health-check.outputs.status == 'error'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'data-sync-failure',
+              state: 'open'
+            });
+
+            // 如果已有相关issue且在24小时内创建，则不重复创建
+            const recentIssue = issues.find(issue => {
+              const createdAt = new Date(issue.created_at);
+              const now = new Date();
+              const hoursDiff = (now - createdAt) / (1000 * 60 * 60);
+              return hoursDiff < 24;
+            });
+
+            if (!recentIssue) {
+              const issueBody = `## 数据同步故障报告
+
+**检测时间**: ${new Date().toISOString()}
+**状态**: ${{ steps.health-check.outputs.status }}
+**数据年龄**: ${{ steps.health-check.outputs.latest-data-age }} 小时
+
+### 问题描述
+数据同步健康检查失败，需要手动介入处理。
+
+### 建议操作
+1. 检查 GitHub Actions 工作流运行状态
+2. 验证 ai-briefing-archive 仓库是否正常更新
+3. 检查子模块配置和权限设置
+4. 手动触发数据同步工作流
+
+### 相关链接
+- [数据同步工作流](${context.payload.repository.html_url}/actions/workflows/sync-news-data.yml)
+- [健康监控工作流](${context.payload.repository.html_url}/actions/workflows/health-monitor.yml)
+
+---
+*此issue由自动化健康监控系统创建*`;
+
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `🚨 数据同步故障 - ${new Date().toLocaleDateString('zh-CN')}`,
+                body: issueBody,
+                labels: ['data-sync-failure', 'automated', 'urgent']
+              });
+
+              console.log('Created new issue for data sync failure');
+            } else {
+              console.log('Recent issue already exists, skipping creation');
+            }
+
+      - name: Update status badge
+        run: |
+          STATUS="${{ steps.health-check.outputs.status }}"
+          DATA_AGE="${{ steps.health-check.outputs.latest-data-age }}"
+
+          case "$STATUS" in
+            "healthy")
+              BADGE_COLOR="brightgreen"
+              BADGE_MESSAGE="数据正常"
+              ;;
+            "stale")
+              BADGE_COLOR="yellow"
+              BADGE_MESSAGE="数据过期 (${DATA_AGE}h)"
+              ;;
+            "error")
+              BADGE_COLOR="red"
+              BADGE_MESSAGE="同步故障"
+              ;;
+          esac
+
+          echo "Health status: $STATUS"
+          echo "Badge: $BADGE_MESSAGE ($BADGE_COLOR)"
+
+          # 这里可以更新README中的状态徽章，或发送到状态页面
+          # 具体实现取决于你的需求

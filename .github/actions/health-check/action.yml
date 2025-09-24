@@ -1,0 +1,215 @@
+name: 'News Data Health Check'
+description: 'Monitor news data freshness and alert on issues'
+inputs:
+  max-age-hours:
+    description: 'Maximum age of news data in hours before alerting'
+    required: false
+    default: '6'
+  webhook-url:
+    description: 'Webhook URL for notifications'
+    required: false
+    default: ''
+  telegram-token:
+    description: 'Telegram bot token for notifications'
+    required: false
+    default: ''
+  telegram-chat-id:
+    description: 'Telegram chat ID for notifications'
+    required: false
+    default: ''
+
+outputs:
+  status:
+    description: 'Health check status (healthy/stale/error)'
+    value: ${{ steps.health-check.outputs.status }}
+  latest-data-age:
+    description: 'Age of latest data in hours'
+    value: ${{ steps.health-check.outputs.data_age }}
+  alert-sent:
+    description: 'Whether an alert was sent'
+    value: ${{ steps.health-check.outputs.alert_sent }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Health check
+      id: health-check
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        MAX_AGE_HOURS="${{ inputs.max-age-hours }}"
+        CURRENT_TIME=$(date +%s)
+
+        echo "::group::News Data Health Check"
+        echo "::notice::Checking news data freshness (max age: ${MAX_AGE_HOURS}h)"
+
+        STATUS="healthy"
+        DATA_AGE_HOURS="0"
+        ALERT_SENT="false"
+        ISSUES=()
+
+        # 1. 检查子模块状态
+        if [[ ! -d "source-news" ]]; then
+          echo "::error::Source news submodule not found"
+          STATUS="error"
+          ISSUES+=("子模块目录缺失")
+        else
+          cd source-news
+
+          # 检查是否在detached HEAD状态
+          if ! git symbolic-ref HEAD > /dev/null 2>&1; then
+            echo "::warning::Submodule is in detached HEAD state"
+            ISSUES+=("子模块处于分离HEAD状态")
+            if [[ "$STATUS" == "healthy" ]]; then
+              STATUS="stale"
+            fi
+          fi
+
+          # 检查最新数据时间
+          LATEST_FILE=""
+          if LATEST_FILE=$(find . -name "briefing_*.md" -type f -printf '%T@ %p\n' | sort -nr | head -1 | cut -d' ' -f2-); then
+            if [[ -n "$LATEST_FILE" ]]; then
+              # 从文件名提取时间戳
+              if [[ "$LATEST_FILE" =~ briefing_([0-9]{8})T([0-9]{6})Z\.md ]]; then
+                DATE_PART="${BASH_REMATCH[1]}"
+                TIME_PART="${BASH_REMATCH[2]}"
+
+                # 转换为 epoch time
+                FORMATTED_DATE="${DATE_PART:0:4}-${DATE_PART:4:2}-${DATE_PART:6:2} ${TIME_PART:0:2}:${TIME_PART:2:2}:${TIME_PART:4:2}"
+                FILE_TIME=$(date -d "$FORMATTED_DATE UTC" +%s 2>/dev/null || echo "0")
+
+                if [[ "$FILE_TIME" -gt 0 ]]; then
+                  DATA_AGE_SECONDS=$((CURRENT_TIME - FILE_TIME))
+                  DATA_AGE_HOURS=$((DATA_AGE_SECONDS / 3600))
+
+                  echo "::notice::Latest data file: $(basename "$LATEST_FILE")"
+                  echo "::notice::Data age: ${DATA_AGE_HOURS} hours"
+
+                  if [[ $DATA_AGE_HOURS -gt $MAX_AGE_HOURS ]]; then
+                    echo "::warning::News data is stale (${DATA_AGE_HOURS}h old)"
+                    STATUS="stale"
+                    ISSUES+=("数据过期 (${DATA_AGE_HOURS}小时)")
+                  fi
+                else
+                  echo "::error::Cannot parse file timestamp"
+                  STATUS="error"
+                  ISSUES+=("无法解析文件时间戳")
+                fi
+              else
+                echo "::error::Invalid briefing file format"
+                STATUS="error"
+                ISSUES+=("文件格式不正确")
+              fi
+            else
+              echo "::error::No briefing files found"
+              STATUS="error"
+              ISSUES+=("未找到摘要文件")
+            fi
+          else
+            echo "::error::Cannot search for briefing files"
+            STATUS="error"
+            ISSUES+=("无法搜索摘要文件")
+          fi
+
+          cd ..
+        fi
+
+        # 2. 检查远程仓库状态
+        echo "::notice::Checking remote repository status"
+        if REMOTE_COMMIT=$(git ls-remote https://github.com/Joe-oss9527/ai-briefing-archive.git HEAD | cut -f1 2>/dev/null); then
+          LOCAL_COMMIT=$(git ls-tree HEAD source-news | awk '{print $3}' 2>/dev/null || echo "")
+
+          if [[ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ]]; then
+            echo "::warning::Local submodule is behind remote"
+            ISSUES+=("本地子模块落后于远程仓库")
+            if [[ "$STATUS" == "healthy" ]]; then
+              STATUS="stale"
+            fi
+          fi
+        else
+          echo "::warning::Cannot check remote repository"
+          ISSUES+=("无法检查远程仓库状态")
+        fi
+
+        # 输出结果
+        echo "status=$STATUS" >> $GITHUB_OUTPUT
+        echo "data_age=$DATA_AGE_HOURS" >> $GITHUB_OUTPUT
+
+        echo "::notice::Health check result: $STATUS"
+        if [[ ${#ISSUES[@]} -gt 0 ]]; then
+          echo "::notice::Issues found:"
+          printf '  - %s\n' "${ISSUES[@]}"
+        fi
+
+        echo "::endgroup::"
+
+        # 3. 发送告警（如果需要）
+        if [[ "$STATUS" != "healthy" ]] && [[ -n "${{ inputs.webhook-url }}${{ inputs.telegram-token }}" ]]; then
+          echo "::group::Sending alerts"
+
+          ALERT_MESSAGE="🚨 **AIHeadline.news 数据同步异常**
+
+**状态**: $STATUS
+**数据年龄**: ${DATA_AGE_HOURS} 小时
+**时间**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+
+**问题列表**:"
+
+          for issue in "${ISSUES[@]}"; do
+            ALERT_MESSAGE="$ALERT_MESSAGE
+• $issue"
+          done
+
+          ALERT_MESSAGE="$ALERT_MESSAGE
+
+请检查数据同步流程并及时修复。"
+
+          # 发送到 Webhook
+          if [[ -n "${{ inputs.webhook-url }}" ]]; then
+            if send_webhook_alert "${{ inputs.webhook-url }}" "$ALERT_MESSAGE"; then
+              echo "::notice::Webhook alert sent successfully"
+              ALERT_SENT="true"
+            else
+              echo "::warning::Failed to send webhook alert"
+            fi
+          fi
+
+          # 发送到 Telegram
+          if [[ -n "${{ inputs.telegram-token }}" ]] && [[ -n "${{ inputs.telegram-chat-id }}" ]]; then
+            if send_telegram_alert "${{ inputs.telegram-token }}" "${{ inputs.telegram-chat-id }}" "$ALERT_MESSAGE"; then
+              echo "::notice::Telegram alert sent successfully"
+              ALERT_SENT="true"
+            else
+              echo "::warning::Failed to send Telegram alert"
+            fi
+          fi
+
+          echo "::endgroup::"
+        fi
+
+        echo "alert_sent=$ALERT_SENT" >> $GITHUB_OUTPUT
+
+        # Helper functions
+        send_webhook_alert() {
+          local webhook_url="$1"
+          local message="$2"
+
+          curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"text\": \"$message\"}" \
+            "$webhook_url" | grep -q "^2"
+        }
+
+        send_telegram_alert() {
+          local bot_token="$1"
+          local chat_id="$2"
+          local message="$3"
+
+          curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\": \"$chat_id\", \"text\": \"$message\", \"parse_mode\": \"Markdown\"}" \
+            "https://api.telegram.org/bot$bot_token/sendMessage" | grep -q "^2"
+        }
