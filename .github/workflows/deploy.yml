@@ -60,7 +60,10 @@ jobs:
       - name: Sync content
         run: ./.github/scripts/sync-news.sh --mode=auto
 
-      - name: Build with Hugo
+      - name: Prepare build directories
+        run: rm -rf public public-worker public-pages
+
+      - name: Build site for Cloudflare Workers
         env:
           HUGO_ENVIRONMENT: production
           HUGO_CACHEDIR: ${{ github.workspace }}/.cache/hugo_cache
@@ -68,18 +71,29 @@ jobs:
           hugo \
             --gc \
             --minify \
+            --destination public-worker
+
+      - name: Build site for GitHub Pages
+        env:
+          HUGO_ENVIRONMENT: production
+          HUGO_CACHEDIR: ${{ github.workspace }}/.cache/hugo_cache
+        run: |
+          hugo \
+            --gc \
+            --minify \
+            --destination public-pages \
             --baseURL "${{ steps.pages.outputs.base_url }}/"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: public
+          path: public-pages
 
       - name: Upload Worker asset bundle
         uses: actions/upload-artifact@v4
         with:
-          name: site-public
-          path: public
+          name: site-worker
+          path: public-worker
           if-no-files-found: error
           retention-days: 1
 
@@ -121,7 +135,7 @@ jobs:
       - name: Download built site
         uses: actions/download-artifact@v4
         with:
-          name: site-public
+          name: site-worker
           path: public
 
       - name: Deploy to Cloudflare Workers
