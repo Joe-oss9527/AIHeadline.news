@@ -1,199 +1,132 @@
-# .github/workflows/deploy.yml
-name: Deploy AI News to Cloudflare & GitHub Pages
+name: Deploy AIHeadline.news
 
 on:
-  schedule:
-    - cron: '0 0 * * *' # 每天UTC 0点 (北京时间8点)
-  workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
 
-# 设置GITHUB_TOKEN的权限
 permissions:
-  contents: write     # 需要写权限来自动更新submodule
-  pages: write        # GitHub Pages 部署所需
-  id-token: write     # OIDC token 用于 Pages 部署
-  actions: read       # 读取 workflow 运行状态
+  contents: read
+  pages: write
+  id-token: write
 
-# 只允许一个并发部署，取消进行中的旧部署
 concurrency:
-  group: "deploy-${{ github.ref }}"
+  group: deploy-${{ github.ref }}
   cancel-in-progress: true
 
-# 默认设置
-defaults:
-  run:
-    shell: bash
+env:
+  HUGO_VERSION: 0.150.0
 
 jobs:
-  # 构建任务
   build:
-    runs-on: ubuntu-24.04
-    env:
-      HUGO_VERSION: 0.150.0
+    name: Build site
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
     steps:
-      # 检出网站代码仓库
-      - name: Checkout website repo
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 0
+          submodules: false
 
-      # 使用简单可靠的数据同步机制
-      - name: Simple reliable data sync
-        id: sync-data
-        uses: ./.github/actions/simple-reliable-sync
-        timeout-minutes: 10
-
-      # 如果同步失败，尝试使用旧的同步方法作为备用
-      - name: Fallback sync (legacy)
-        if: steps.sync-data.outputs.sync-status == 'failed'
-        uses: ./.github/actions/setup-and-sync
-        timeout-minutes: 15
-        with:
-          hugo-version: ${{ env.HUGO_VERSION }}
-          sync-mode: full
-
-      # 安装 Hugo
-      - name: Install Hugo
-        run: |
-          set -euo pipefail
-          echo "::group::Installing Hugo ${{ env.HUGO_VERSION }}"
-          wget -O "${{ runner.temp }}/hugo.deb" "https://github.com/gohugoio/hugo/releases/download/v${{ env.HUGO_VERSION }}/hugo_extended_${{ env.HUGO_VERSION }}_linux-amd64.deb"
-          sudo dpkg -i "${{ runner.temp }}/hugo.deb"
-          hugo version
-          echo "::endgroup::"
-
-      # 同步内容
-      - name: Sync content using script
-        run: |
-          chmod +x ./.github/scripts/sync-news.sh
-          ./.github/scripts/sync-news.sh --mode=auto
-
-      # 设置Pages
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v5
 
-      # 步骤6: 构建网站
-      - name: Generate Hugo cache key
-        id: hugo-cache-key
-        run: |
-          echo "key=hugo-cache-${{ runner.os }}-${{ hashFiles('hugo.toml', 'package*.json', 'go.mod', 'go.sum') }}" >> $GITHUB_OUTPUT
+      - name: Update source-news content
+        run: ./.github/scripts/update-source-news.sh
 
       - name: Restore Hugo cache
         uses: actions/cache@v4
         with:
           path: ./.cache/hugo_cache
-          key: ${{ steps.hugo-cache-key.outputs.key }}-${{ github.sha }}
+          key: ${{ runner.os }}-hugo-${{ env.HUGO_VERSION }}-${{ hashFiles('hugo.toml', 'go.mod', 'go.sum', 'package*.json') }}
           restore-keys: |
-            ${{ steps.hugo-cache-key.outputs.key }}-
-            hugo-cache-${{ runner.os }}-
+            ${{ runner.os }}-hugo-${{ env.HUGO_VERSION }}-
+            ${{ runner.os }}-hugo-
+
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v2
+        with:
+          hugo-version: ${{ env.HUGO_VERSION }}
+          extended: true
+
+      - name: Sync content
+        run: ./.github/scripts/sync-news.sh --mode=auto
 
       - name: Build with Hugo
         env:
-          HUGO_CACHEDIR: ${{ github.workspace }}/.cache/hugo_cache
           HUGO_ENVIRONMENT: production
+          HUGO_CACHEDIR: ${{ github.workspace }}/.cache/hugo_cache
         run: |
           hugo \
             --gc \
             --minify \
             --baseURL "${{ steps.pages.outputs.base_url }}/"
 
-      # 步骤7: 上传 GitHub Pages 构建产物
-      - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v4  # Pages 专用 action 保持 v3
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
         with:
-          path: ./public
+          path: public
 
-  # 部署到GitHub Pages
-  deploy-gh-pages:
+      - name: Upload Worker asset bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-public
+          path: public
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy-pages:
+    name: Deploy GitHub Pages
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-24.04
-    needs: build
+      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4  # 使用最新版本
+        id: deploy
+        uses: actions/deploy-pages@v4
 
-  # 部署到Cloudflare Worker
-  deploy-cf-worker:
-    runs-on: ubuntu-24.04
+  deploy-worker:
+    name: Deploy Cloudflare Worker
+    runs-on: ubuntu-latest
+    needs: build
     if: github.ref == 'refs/heads/main'
-    env:
-      HUGO_VERSION: 0.150.0
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
     steps:
-      # 检出代码仓库
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 0
+          submodules: false
 
-      # 使用简单可靠的数据同步机制
-      - name: Simple reliable data sync
-        id: sync-data
-        uses: ./.github/actions/simple-reliable-sync
-        timeout-minutes: 10
+      - name: Clean default public directory
+        run: rm -rf public
 
-      # 如果同步失败，尝试使用旧的同步方法作为备用
-      - name: Fallback sync (legacy)
-        if: steps.sync-data.outputs.sync-status == 'failed'
-        uses: ./.github/actions/setup-and-sync
-        timeout-minutes: 15
+      - name: Download built site
+        uses: actions/download-artifact@v4
         with:
-          hugo-version: ${{ env.HUGO_VERSION }}
-          sync-mode: full
+          name: site-public
+          path: public
 
-      # 安装 Hugo
-      - name: Install Hugo
-        run: |
-          set -euo pipefail
-          echo "::group::Installing Hugo ${{ env.HUGO_VERSION }}"
-          wget -O "${{ runner.temp }}/hugo.deb" "https://github.com/gohugoio/hugo/releases/download/v${{ env.HUGO_VERSION }}/hugo_extended_${{ env.HUGO_VERSION }}_linux-amd64.deb"
-          sudo dpkg -i "${{ runner.temp }}/hugo.deb"
-          hugo version
-          echo "::endgroup::"
-
-      # 同步内容
-      - name: Sync content using script
-        run: |
-          chmod +x ./.github/scripts/sync-news.sh
-          ./.github/scripts/sync-news.sh --mode=auto
-
-      # 步骤5: 构建网站
-      - name: Generate Hugo cache key
-        id: hugo-cache-key
-        run: |
-          echo "key=hugo-cache-${{ runner.os }}-${{ hashFiles('hugo.toml', 'package*.json', 'go.mod', 'go.sum') }}" >> $GITHUB_OUTPUT
-
-      - name: Restore Hugo cache
-        uses: actions/cache@v4
-        with:
-          path: ./.cache/hugo_cache
-          key: ${{ steps.hugo-cache-key.outputs.key }}-${{ github.sha }}
-          restore-keys: |
-            ${{ steps.hugo-cache-key.outputs.key }}-
-            hugo-cache-${{ runner.os }}-
-
-      - name: Build with Hugo
-        env:
-          HUGO_CACHEDIR: ${{ github.workspace }}/.cache/hugo_cache
-          HUGO_ENVIRONMENT: production
-        run: |
-          hugo \
-            --gc \
-            --minify
-          echo "=== Contents of public directory ==="
-          ls -la public/
-
-      # 部署到 Cloudflare Worker
-      - name: Deploy to Cloudflare Worker
+      - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          wranglerVersion: '4.38.0'
+          command: publish

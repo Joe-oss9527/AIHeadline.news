@@ -92,9 +92,8 @@ npm run dev
 ### 目录结构
 ```
 ├── .github/
-│   ├── actions/setup-and-sync/    # 复用的 CI 组件
-│   ├── scripts/                   # 构建和同步脚本
-│   └── workflows/deploy.yml       # 主要部署流程
+│   ├── scripts/                   # 构建与同步脚本（含 update-source-news.sh）
+│   └── workflows/deploy.yml       # 精简后的 CI/CD 流程
 ├── content/                       # Hugo 内容目录（自动生成）
 ├── layouts/                       # Hugo 模板
 ├── source-news/                   # 新闻源子模块

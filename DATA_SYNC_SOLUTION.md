@@ -1,5 +1,8 @@
 # AIHeadline.news 可靠数据同步解决方案
 
+> **注意**：自 2025-09-24 起，仓库使用精简版 `deploy.yml` 工作流与 `.github/scripts/update-source-news.sh`，本文件仅作为历史记录。
+
+
 ## 问题背景
 
 AIHeadline.news 一直存在数据同步问题：
