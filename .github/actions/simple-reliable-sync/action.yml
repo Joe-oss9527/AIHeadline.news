@@ -1,0 +1,71 @@
+name: 'Simple Reliable Sync'
+description: 'Simple and reliable submodule sync that just works'
+inputs:
+  submodule-path:
+    description: 'Path to the submodule'
+    required: false
+    default: 'source-news'
+
+outputs:
+  sync-status:
+    description: 'Status of the sync operation (success/failed/no-changes)'
+    value: ${{ steps.sync.outputs.status }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Simple reliable sync
+      id: sync
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        SUBMODULE_PATH="${{ inputs.submodule-path }}"
+
+        echo "::group::Simple Reliable Submodule Sync"
+        echo "::notice::Syncing $SUBMODULE_PATH"
+
+        # 1. 如果子模块目录不存在，初始化它
+        if [[ ! -d "$SUBMODULE_PATH" ]]; then
+          echo "::notice::Submodule directory not found, initializing"
+          git submodule update --init --recursive "$SUBMODULE_PATH"
+        fi
+
+        # 2. 更新到远程最新版本
+        echo "::notice::Updating submodule to remote latest"
+        git submodule update --remote "$SUBMODULE_PATH"
+
+        # 3. 进入子模块确保在正确分支上
+        cd "$SUBMODULE_PATH"
+
+        # 如果在 detached HEAD 状态，切换到 main 分支
+        if ! git symbolic-ref HEAD > /dev/null 2>&1; then
+          echo "::notice::Submodule in detached HEAD, switching to main branch"
+          if git show-ref --verify --quiet refs/remotes/origin/main; then
+            git checkout -B main origin/main
+          elif git show-ref --verify --quiet refs/remotes/origin/master; then
+            git checkout -B master origin/master
+          else
+            echo "::warning::Cannot find main/master branch, staying on current commit"
+          fi
+        else
+          echo "::notice::Submodule already on branch: $(git branch --show-current)"
+          # 确保是最新的
+          CURRENT_BRANCH=$(git branch --show-current)
+          git pull origin "$CURRENT_BRANCH" || echo "::warning::Failed to pull, but continuing"
+        fi
+
+        echo "::notice::Current commit: $(git rev-parse HEAD)"
+        echo "::notice::Current branch: $(git branch --show-current || echo 'detached')"
+
+        # 检查是否有最新文件
+        LATEST_FILE=$(find . -name "briefing_*.md" -type f -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2- || echo "")
+        if [[ -n "$LATEST_FILE" ]]; then
+          echo "::notice::Latest briefing: $(basename "$LATEST_FILE")"
+        fi
+
+        cd ..
+
+        echo "status=success" >> $GITHUB_OUTPUT
+        echo "::notice::Submodule sync completed successfully"
+        echo "::endgroup::"
