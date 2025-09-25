@@ -96,7 +96,7 @@ npm run dev
 │   └── workflows/deploy.yml       # 精简后的 CI/CD 流程
 ├── content/                       # Hugo 内容目录（自动生成）
 ├── layouts/                       # Hugo 模板
-├── source-news/                   # 新闻源子模块
+├── source-news/                   # 最近一次拉取的新闻数据缓存（不纳入版本控制）
 ├── _worker.ts                     # Cloudflare Worker 脚本
 └── wrangler.jsonc                 # Worker 配置
 ```

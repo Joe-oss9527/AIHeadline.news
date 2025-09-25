@@ -39,8 +39,10 @@ jobs:
         id: pages
         uses: actions/configure-pages@v5
 
-      - name: Update source-news content
+      - name: Fetch latest briefing archive snapshot
         run: ./.github/scripts/update-source-news.sh
+        env:
+          SOURCE_NEWS_FETCH_RETRIES: 4
 
       - name: Restore Hugo cache
         uses: actions/cache@v4

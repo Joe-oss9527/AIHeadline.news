@@ -93,17 +93,23 @@ die() {
 # 清理临时文件
 cleanup_temp_files() {
     log "Cleaning up temporary files..."
-    
+
     if [[ -d "$CONTENT_DIR" ]]; then
         find "$CONTENT_DIR" -name ".tmp_sync*" -type f -delete 2>/dev/null || true
         find "$CONTENT_DIR" -name ".*_tmp" -type f -delete 2>/dev/null || true
     fi
-    
+
     log "Temporary files cleanup completed"
 }
 
 # 设置清理陷阱
 trap cleanup_temp_files EXIT
+
+ensure_source_repo() {
+    if [[ ! -d "${SOURCE_DIR}/.git" ]]; then
+        die "source-news 数据仓库尚未初始化，请先运行 ./.github/scripts/update-source-news.sh"
+    fi
+}
 
 # 验证日期格式 (YYYYMMDD)
 validate_date() {
@@ -665,7 +671,9 @@ main() {
     log "Project root: $PROJECT_ROOT"
     log "Source directory: $SOURCE_DIR"
     log "Content directory: $CONTENT_DIR"
-    
+
+    ensure_source_repo
+
     parse_args "$@"
     log "Mode: $MODE"
     if [[ -n "$DATES_ARG" ]]; then

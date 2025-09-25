@@ -1,6 +1,6 @@
 # AIHeadline.news 可靠数据同步解决方案
 
-> **注意**：自 2025-09-24 起，仓库使用精简版 `deploy.yml` 工作流与 `.github/scripts/update-source-news.sh`，本文件仅作为历史记录。
+> **注意**：自 2025-09-26 起，仓库在 CI/CD 中通过 `.github/scripts/update-source-news.sh` 直接浅克隆 `ai-briefing-archive` 数据源，以下内容同步更新为新方案记录。
 
 
 ## 问题背景
@@ -46,82 +46,64 @@ gh workflow run sync-news-data.yml
 gh workflow run sync-news-data.yml --field force_sync=true
 ```
 
-#### 2. 可靠同步机制 (`.github/actions/reliable-sync`)
+#### 2. 可靠同步机制 (`.github/scripts/update-source-news.sh`)
 
 **解决方案：**
-- 🧹 **完全重建子模块**：避免 detached HEAD 问题
-- 🔄 **多次重试**：网络问题自动恢复
-- ✅ **严格验证**：确保同步结果正确
-- 🔧 **自动清理**：失败时自动回滚
+- 🧹 **一次性浅克隆**：每次构建直接拉取 `main` 最新快照，杜绝子模块残留。
+- 🔄 **指数退避重试**：默认 3～4 次尝试即可穿透偶发网络抖动。
+- ✅ **快照验证**：生成 `.source-news-meta` 并在日志中输出 commit 与时间戳。
+- 🧼 **自动修整**：检测到历史子模块结构会先清理再克隆，保证目录干净可用。
 
 **关键改进：**
-```yaml
-# 彻底解决 detached HEAD 问题
-- 删除现有子模块目录
-- 清理 .git/modules 缓存
-- 重新添加并初始化子模块
-- 确保检出到 main 分支
+```bash
+# CI 与本地一致的调用方式，可按需覆盖环境变量
+SOURCE_NEWS_FETCH_RETRIES=4 \
+./.github/scripts/update-source-news.sh
 ```
 
 #### 3. 健康监控系统 (`.github/actions/health-check`)
 
 **监控指标：**
 - 📅 数据新鲜度（默认6小时告警阈值）
-- 🔍 子模块状态检查
+- 📁 数据目录完整性与可读性
 - 🌐 远程仓库连接性
-- 📁 内容文件完整性
+- 📦 `.source-news-meta` 快照校验
 
 **告警渠道：**
 - 📱 Telegram 通知
 - 🔔 GitHub Issues 自动创建
 - 📈 状态徽章更新
 
-#### 4. 紧急修复脚本 (`.github/scripts/emergency-fix.sh`)
+#### 4. 紧急修复脚本（预留）
 
-**立即可用的修复方案：**
-```bash
-cd /path/to/AIHeadline.news
-./.github/scripts/emergency-fix.sh
-```
-
-**功能：**
-- 🔧 一键修复子模块问题
-- 📊 详细的状态检查和报告
-- 💾 安全的变更提交
-- ✅ 修复结果验证
-
+> 计划提供 `.github/scripts/emergency-fix.sh` 封装彻底清理与重新拉取逻辑，目前请使用下文方法手动操作。
 ## 🚀 立即修复当前问题
 
-### 方法1：运行紧急修复脚本
+### 方法1：运行更新脚本（推荐）
 
 ```bash
 # 1. 进入项目目录
 cd /Users/yvan/developer/ai-briefing/AIHeadline.news
 
-# 2. 运行紧急修复
-./.github/scripts/emergency-fix.sh
+# 2. 直接刷新数据仓库
+./.github/scripts/update-source-news.sh
 
-# 3. 按提示推送变更
+# 3. 查看元信息（可选）
+cat .source-news-meta
 ```
 
-### 方法2：手动修复（如果脚本失败）
+### 方法2：手动清理后重新拉取
 
 ```bash
-# 1. 清理现有子模块
-git submodule deinit -f source-news
-git rm -f source-news
-rm -rf source-news .git/modules/source-news
+# 1. 完全移除旧目录（包括可能残留的 .git 文件）
+rm -rf source-news
 
-# 2. 重新添加子模块
-git submodule add -f https://github.com/Joe-oss9527/ai-briefing-archive.git source-news
-cd source-news
-git checkout main
-git pull origin main
-cd ..
+# 2. 重新下载最新数据
+./.github/scripts/update-source-news.sh
 
-# 3. 提交变更
-git add source-news
-git commit -m "fix: repair submodule sync issue"
+# 3. 如需提交配置更新
+git add .gitignore .github/scripts/update-source-news.sh
+git commit -m "chore: refresh source-news sync pipeline"
 git push origin main
 ```
 
@@ -135,7 +117,7 @@ gh workflow run sync-news-data.yml --field force_sync=true
 ## 📈 部署新方案的步骤
 
 ### Phase 1: 立即修复 (5分钟)
-1. ✅ 运行紧急修复脚本
+1. ✅ 运行更新脚本刷新 `source-news`
 2. ✅ 验证数据更新
 3. ✅ 触发网站重新构建
 

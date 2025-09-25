@@ -8,10 +8,13 @@ hugo_stats.json
 
 # Auto-generated content (per CLAUDE.md instructions)
 content/
+source-news/
+.source-news-meta
 
 # Local development
 .dev.vars
 node_modules/
+.claude/
 
 # OS generated files
 .DS_Store
