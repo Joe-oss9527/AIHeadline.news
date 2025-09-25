@@ -178,7 +178,7 @@ collect_month_dates() {
     local month_dir="$1"
     
     find "$month_dir" -mindepth 2 -maxdepth 2 -type f -name 'briefing_*.md' 2>/dev/null | \
-        sed -n 's/.*briefing_\([0-9]\{8\}\)T[0-9]\{6\}Z\.md$/\1/p' | \
+        sed -E -n 's/.*briefing_([0-9]{8})T[0-9]{6}(Z|[+-][0-9]{4})\.md$/\1/p' | \
         sort -u | \
         while IFS= read -r date_str; do
             if validate_date "$date_str"; then
@@ -222,13 +222,21 @@ generate_daily_page() {
         while IFS= read -r -d '' file; do
             local filename="${file##*/}"
 
-            if [[ "$filename" =~ ^briefing_([0-9]{8})T([0-9]{6})Z\.md$ ]]; then
+            if [[ "$filename" =~ ^briefing_([0-9]{8})T([0-9]{6})(Z|[+-][0-9]{4})\.md$ ]]; then
                 local file_date="${BASH_REMATCH[1]}"
                 local time_part="${BASH_REMATCH[2]}"
+                local tz_part="${BASH_REMATCH[3]}"
 
                 [[ "$file_date" == "$date_str" ]] || continue
 
-                local stamp="${file_date}T${time_part}Z"
+                local normalized_tz
+                if [[ "$tz_part" == "Z" ]]; then
+                    normalized_tz="+0000"
+                else
+                    normalized_tz="$tz_part"
+                fi
+
+                local stamp="${file_date}T${time_part}${normalized_tz}"
                 if [[ -z "$best_stamp" || "$stamp" > "$best_stamp" ]]; then
                     best_stamp="$stamp"
                     best_file="$file"
