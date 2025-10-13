@@ -228,6 +228,43 @@ collect_month_dates() {
         done
 }
 
+# 将 UTC 时间戳转换为北京时间（UTC+8）并提取日期
+convert_timestamp_to_beijing_date() {
+    local timestamp="$1"  # 格式：20251012T235340+0000
+
+    # 使用 Python 进行时区转换
+    python3 - "$timestamp" <<'PY'
+import sys
+from datetime import datetime, timezone, timedelta
+
+timestamp_str = sys.argv[1]
+
+# 解析时间戳
+if 'T' in timestamp_str:
+    date_part = timestamp_str[:8]  # YYYYMMDD
+    time_part = timestamp_str[9:15]  # HHMMSS
+    tz_part = timestamp_str[15:]  # Z 或 +0000
+
+    # 构造 ISO 格式
+    iso_str = f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:8]}T{time_part[:2]}:{time_part[2:4]}:{time_part[4:6]}"
+
+    if tz_part == 'Z':
+        iso_str += '+00:00'
+    else:
+        iso_str += tz_part[:3] + ':' + tz_part[3:]
+
+    # 解析并转换到北京时间
+    dt = datetime.fromisoformat(iso_str)
+    beijing_tz = timezone(timedelta(hours=8))
+    dt_beijing = dt.astimezone(beijing_tz)
+
+    # 输出格式：year=YYYY month=MM day=DD
+    print(f"year={dt_beijing.year}")
+    print(f"month={dt_beijing.month:02d}")
+    print(f"day={dt_beijing.day:02d}")
+PY
+}
+
 # 生成日报页面（支持多源合并）
 generate_daily_page() {
     local month_dir="$1"
@@ -324,16 +361,30 @@ generate_daily_page() {
         return 1
     fi
 
-    # 开始生成页面
+    # 找到最新的时间戳并转换到北京时间（UTC+8）用于标题
+    local latest_stamp
+    latest_stamp="$(echo "$source_stamps" | tr '|' '\n' | sort -r | head -1)"
+
+    # 将最新时间戳转换为北京时间的日期
+    local title_year title_month title_day
+    eval "$(convert_timestamp_to_beijing_date "$latest_stamp")"
+    title_year="$year"
+    title_month="$month"
+    title_day="$day"
+
+    log "  Title date (Beijing time): ${title_year}-${title_month}-${title_day}"
+
+    # 开始生成页面（文件名仍使用 UTC 日期以保持一致性）
+    eval "$(parse_date "$date_str")"
     local daily_file="${dest_dir}/${year}-${month}-${day}.md"
     : > "$daily_file"
 
-    # 生成 Front Matter
+    # 生成 Front Matter（标题使用北京时间）
     echo "---" >> "$daily_file"
-    echo "title: "${month}月${day}日 AI 快讯"" >> "$daily_file"
+    echo "title: "${title_month}月${title_day}日 AI 快讯"" >> "$daily_file"
     echo "weight: $day_weight" >> "$daily_file"
     echo "date: ${year}-${month}-${day}" >> "$daily_file"
-    echo "description: "AI 快讯 - ${year}年${month}月${day}日最新动态"" >> "$daily_file"
+    echo "description: "AI 快讯 - ${title_year}年${title_month}月${title_day}日最新动态"" >> "$daily_file"
 
     # 创建临时文件来处理排序
     local temp_file="/tmp/source_sort_$$"
