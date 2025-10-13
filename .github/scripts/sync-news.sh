@@ -527,6 +527,10 @@ NO_DATA_EOF
         return 0
     fi
 
+    # 从最新日报文件中提取标题信息
+    local page_title
+    page_title=$(grep -m 1 '^title: ' "$latest_file" | sed 's/^title: //' | tr -d '"')
+
     # 复制最新日报内容到首页
     cp "$latest_file" "${CONTENT_DIR}/_index.md"
 
@@ -537,6 +541,7 @@ NO_DATA_EOF
 
     {
         echo "---"
+        echo "title: $page_title"
         echo "linkTitle: AI 快讯"
         echo "breadcrumbs: false"
         echo "description: \"每天 3 分钟，速览全球 AI 关键信息。自动聚合公开权威源，事件聚类 + LLM 摘要，原文一键直达；支持网站、RSS 与 Telegram 订阅。\""
