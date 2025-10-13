@@ -154,21 +154,56 @@ calculate_weight() {
 ## 已废弃：不再基于 pipeline slug 取显示名，直接使用源 Markdown 的 H1
 
 # 将 Markdown 标题级别整体下调一级，避免页面出现多个 H1
+# 同时将引用块中的 ISO 8601 时间戳本地化为中文格式
 render_markdown_body() {
     local file="$1"
     python3 - "$file" <<'PY'
 import sys
+import re
 from pathlib import Path
+from datetime import datetime
+
+def localize_timestamp(line):
+    """将引用块中的 ISO 8601 时间戳转换为中文格式"""
+    # 匹配形如 > 2025-09-24T23:53:02.887960Z 或 > 2025-09-24T23:53:02+0000 的行
+    match = re.match(r'^>\s*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.\d+)?(Z|[+-]\d{4})\s*$', line)
+    if not match:
+        return line
+
+    try:
+        timestamp_str = match.group(1)
+        tz_str = match.group(2)
+
+        # 将 Z 转换为 +00:00 格式
+        if tz_str == 'Z':
+            iso_string = timestamp_str + '+00:00'
+        else:
+            # 将 +0000 转换为 +00:00
+            iso_string = timestamp_str + tz_str[:3] + ':' + tz_str[3:]
+
+        # 解析时间戳
+        dt = datetime.fromisoformat(iso_string)
+
+        # 转换为中文格式
+        return f'> {dt.year}年{dt.month:02d}月{dt.day:02d}日 {dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}'
+    except (ValueError, AttributeError):
+        # 解析失败时保持原格式
+        return line
+
 path = Path(sys.argv[1])
 text = path.read_text(encoding='utf-8')
 lines = text.splitlines()
 output = []
-# 不跳过首行 H1，而是将所有一级标题下调为 H2，避免页面出现多个 H1
+
+# 处理每一行：下调标题级别 + 本地化时间戳
 for line in lines:
     if line.startswith('# '):
         output.append('## ' + line[2:].lstrip())
+    elif line.startswith('>'):
+        output.append(localize_timestamp(line))
     else:
         output.append(line)
+
 sys.stdout.write('\n'.join(output))
 PY
 }
