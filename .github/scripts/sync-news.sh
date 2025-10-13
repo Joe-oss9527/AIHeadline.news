@@ -164,7 +164,7 @@ from pathlib import Path
 from datetime import datetime
 
 def localize_timestamp(line):
-    """将引用块中的 ISO 8601 时间戳转换为中文格式"""
+    """将引用块中的 ISO 8601 时间戳转换为 HTML time 标签（支持客户端本地化）"""
     # 匹配形如 > 2025-09-24T23:53:02.887960Z 或 > 2025-09-24T23:53:02+0000 的行
     match = re.match(r'^>\s*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.\d+)?(Z|[+-]\d{4})\s*$', line)
     if not match:
@@ -184,8 +184,12 @@ def localize_timestamp(line):
         # 解析时间戳
         dt = datetime.fromisoformat(iso_string)
 
-        # 转换为中文格式
-        return f'> {dt.year}年{dt.month:02d}月{dt.day:02d}日 {dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}'
+        # 输出 HTML time 标签，包含 datetime 属性供 JavaScript 使用
+        # 同时显示 UTC 时间作为回退
+        iso_format = dt.isoformat()
+        utc_display = f'{dt.year}-{dt.month:02d}-{dt.day:02d} {dt.hour:02d}:{dt.minute:02d}:{dt.second:02d} UTC'
+
+        return f'> <time datetime="{iso_format}" class="local-time">{utc_display}</time>'
     except (ValueError, AttributeError):
         # 解析失败时保持原格式
         return line

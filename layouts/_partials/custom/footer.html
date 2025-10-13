@@ -13,9 +13,74 @@ async function load(t,id){
     document.getElementById(id).textContent='—';
   }
 }
-load('total','pv'); 
+load('total','pv');
 load('online','uv');
 setInterval(()=>load('online','uv'),30000);
+</script>
+
+{{/* Localize timestamps to user's timezone using Intl API */}}
+<script>
+(function() {
+  function localizeTimestamps() {
+    const timeElements = document.querySelectorAll('time.local-time[datetime]');
+
+    timeElements.forEach(timeEl => {
+      const isoString = timeEl.getAttribute('datetime');
+      if (!isoString) return;
+
+      try {
+        const date = new Date(isoString);
+
+        // 使用 Intl.DateTimeFormat 提供更好的国际化支持
+        // 根据页面语言自动适配格式
+        const lang = document.documentElement.lang || 'zh-CN';
+
+        // 格式化为本地时间
+        const formatter = new Intl.DateTimeFormat(lang, {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        });
+
+        // 为中文用户提供友好格式
+        if (lang.startsWith('zh')) {
+          const parts = formatter.formatToParts(date);
+          const year = parts.find(p => p.type === 'year').value;
+          const month = parts.find(p => p.type === 'month').value;
+          const day = parts.find(p => p.type === 'day').value;
+          const hour = parts.find(p => p.type === 'hour').value;
+          const minute = parts.find(p => p.type === 'minute').value;
+          const second = parts.find(p => p.type === 'second').value;
+
+          timeEl.textContent = `${year}年${month}月${day}日 ${hour}:${minute}:${second}`;
+        } else {
+          // 其他语言使用标准格式
+          timeEl.textContent = formatter.format(date);
+        }
+
+        // 设置 title 属性为完整的本地化时间
+        const longFormatter = new Intl.DateTimeFormat(lang, {
+          dateStyle: 'full',
+          timeStyle: 'long'
+        });
+        timeEl.setAttribute('title', longFormatter.format(date));
+      } catch (e) {
+        console.error('Error parsing timestamp:', isoString, e);
+      }
+    });
+  }
+
+  // DOM 加载完成后执行
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', localizeTimestamps);
+  } else {
+    localizeTimestamps();
+  }
+})();
 </script>
 
 <div class="footer-wrapper">

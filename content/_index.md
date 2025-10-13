@@ -8,7 +8,7 @@ cascade:
 
 ## AI 快讯 · Twitter
 
-> 2025年10月12日 23:53:40
+> <time datetime="2025-10-12T23:53:40+00:00" class="local-time">2025-10-12 23:53:40 UTC</time>
 
 ## 1. Agentic Focus
 
@@ -24,7 +24,7 @@ cascade:
 - 评估AI模型时，需注意其代码生成风格差异，例如Claude可能生成冗余Markdown，而Codex则更简洁，选择时应结合具体任务需求。 [消息来源](https://x.com/steipete/status/1977466373363437914)
 ## AI 快讯 · Hacker News
 
-> 2025年10月12日 23:57:53
+> <time datetime="2025-10-12T23:57:53+00:00" class="local-time">2025-10-12 23:57:53 UTC</time>
 
 ## 1. Agentic Focus
 
