@@ -57,9 +57,6 @@
           timeStyle: 'long'
         });
         timeEl.setAttribute('title', longFormatter.format(date));
-
-        // 添加 localized 类以触发淡入动画
-        timeEl.classList.add('localized');
       } catch (e) {
         console.error('Error parsing timestamp:', isoString, e);
       }
