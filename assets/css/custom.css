@@ -458,3 +458,29 @@ footer .hx-max-w-screen-xl { max-width: 100%; }
   background: rgba(255, 255, 255, 0.08);
   color: #a1a1aa;
 }
+
+/*────────────────── 时间本地化渐进增强 ──────────────────*/
+/* 时间元素初始隐藏，JavaScript 本地化后淡入显示 */
+time.local-time {
+  opacity: 0;
+  transition: opacity 0.2s var(--ease-out);
+}
+
+time.local-time.localized {
+  opacity: 1;
+}
+
+/* 无 JavaScript 环境下仍然可见（回退到 UTC 时间） */
+noscript ~ * time.local-time,
+.no-js time.local-time {
+  opacity: 1 !important;
+  transition: none;
+}
+
+/* 尊重用户的减少动画偏好设置 */
+@media (prefers-reduced-motion: reduce) {
+  time.local-time {
+    transition: none;
+    opacity: 1 !important;
+  }
+}
