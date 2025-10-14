@@ -154,17 +154,17 @@ calculate_weight() {
 ## 已废弃：不再基于 pipeline slug 取显示名，直接使用源 Markdown 的 H1
 
 # 将 Markdown 标题级别整体下调一级，避免页面出现多个 H1
-# 同时将引用块中的 ISO 8601 时间戳本地化为中文格式
+# 同时将引用块中的 ISO 8601 时间戳转换为北京时间（UTC+8）
 render_markdown_body() {
     local file="$1"
     python3 - "$file" <<'PY'
 import sys
 import re
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 def localize_timestamp(line):
-    """将引用块中的 ISO 8601 时间戳转换为 HTML time 标签（支持客户端本地化）"""
+    """将引用块中的 ISO 8601 时间戳转换为北京时间（UTC+8）"""
     # 匹配形如 > 2025-09-24T23:53:02.887960Z 或 > 2025-09-24T23:53:02+0000 的行
     match = re.match(r'^>\s*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.\d+)?(Z|[+-]\d{4})\s*$', line)
     if not match:
@@ -181,15 +181,13 @@ def localize_timestamp(line):
             # 将 +0000 转换为 +00:00
             iso_string = timestamp_str + tz_str[:3] + ':' + tz_str[3:]
 
-        # 解析时间戳
+        # 解析时间戳并转换为北京时间（UTC+8）
         dt = datetime.fromisoformat(iso_string)
+        beijing_tz = timezone(timedelta(hours=8))
+        dt_beijing = dt.astimezone(beijing_tz)
 
-        # 输出 HTML time 标签，包含 datetime 属性供 JavaScript 使用
-        # 同时显示 UTC 时间作为回退
-        iso_format = dt.isoformat()
-        utc_display = f'{dt.year}-{dt.month:02d}-{dt.day:02d} {dt.hour:02d}:{dt.minute:02d}:{dt.second:02d} UTC'
-
-        return f'> <time datetime="{iso_format}" class="local-time">{utc_display}</time>'
+        # 输出中文格式的北京时间
+        return f'> {dt_beijing.year}年{dt_beijing.month:02d}月{dt_beijing.day:02d}日 {dt_beijing.hour:02d}:{dt_beijing.minute:02d}:{dt_beijing.second:02d}'
     except (ValueError, AttributeError):
         # 解析失败时保持原格式
         return line
