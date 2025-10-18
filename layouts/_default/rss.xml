@@ -20,7 +20,13 @@
 
 {{- $pages := slice }}
 {{- if .IsHome }}
-{{- $pages = site.RegularPages }}
+{{- /* Get all pages with type "docs" and Kind "page", excluding section index pages */ -}}
+{{- $allPages := where site.Pages "Kind" "page" }}
+{{- $docsPages := where $allPages "Type" "docs" }}
+{{- /* Filter out _index.md files by checking if File.TranslationBaseName is not "_index" */ -}}
+{{- $pages = where $docsPages "File.TranslationBaseName" "ne" "_index" }}
+{{- /* Sort by date (newest first) for RSS feed */ -}}
+{{- $pages = $pages.ByDate.Reverse }}
 {{- else if .IsSection }}
 {{- $pages = .RegularPages }}
 {{- else }}
