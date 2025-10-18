@@ -1,0 +1,36 @@
+<h1>RSS Debug Info</h1>
+
+<h2>All Pages Count: {{ len site.Pages }}</h2>
+
+<h2>Pages with Kind=page: {{ len (where site.Pages "Kind" "page") }}</h2>
+
+<h2>First 10 pages with Kind=page:</h2>
+<ol>
+{{ range first 10 (where site.Pages "Kind" "page") }}
+  <li>
+    <strong>{{ .Title }}</strong><br>
+    Kind: {{ .Kind }}<br>
+    Type: {{ .Type }}<br>
+    {{ with .File }}
+      File: {{ .Path }}<br>
+      BaseName: {{ .TranslationBaseName }}<br>
+    {{ else }}
+      <strong>NO FILE OBJECT</strong><br>
+    {{ end }}
+    Date: {{ .Date }}<br>
+    Permalink: {{ .Permalink }}
+  </li>
+{{ end }}
+</ol>
+
+<h2>After filtering _index:</h2>
+{{ $allPages := where site.Pages "Kind" "page" }}
+{{ $filtered := where $allPages "File.TranslationBaseName" "ne" "_index" }}
+<p>Count: {{ len $filtered }}</p>
+
+<h2>First 10 after filtering:</h2>
+<ol>
+{{ range first 10 $filtered }}
+  <li>{{ .Title }} - {{ .Date.Format "2006-01-02" }}</li>
+{{ end }}
+</ol>
