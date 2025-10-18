@@ -20,14 +20,9 @@
 
 {{- $pages := slice }}
 {{- if .IsHome }}
-{{- /* Get all regular pages from all sections, excluding index pages */ -}}
-{{- $allPages := where site.Pages "Kind" "page" }}
-{{- /* Filter out _index.md files */ -}}
-{{- $pages = where $allPages "File.TranslationBaseName" "ne" "_index" }}
-{{- /* Sort by date (newest first) for RSS feed */ -}}
-{{- $pages = $pages.ByDate.Reverse }}
+{{- $pages = site.RegularPages.ByDate.Reverse }}
 {{- else if .IsSection }}
-{{- $pages = .RegularPages }}
+{{- $pages = .RegularPages.ByDate.Reverse }}
 {{- else }}
 {{- $pages = .Pages }}
 {{- end }}
