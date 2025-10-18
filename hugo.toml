@@ -35,6 +35,7 @@ path = "github.com/imfing/hextra"
 [params]
 description = "每天 3 分钟，速览全球 AI 关键信息。自动聚合公开权威源，事件聚类 + LLM 摘要，原文一键直达；支持网站、RSS 与 Telegram 订阅。"
 rssFullContent = true
+adsenseId = "ca-pub-4918945236939675"
 
 # 极简主题配置
 [params.theme]
